@@ -3,84 +3,78 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#1877F2" />
+  <meta name="theme-color" content="#25D366" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>VentasPlus</title>
   <style>
     :root {
-      --bg: #0f1419; --card: #1a2332; --line: #2a3a4f;
-      --fb: #1877F2; --wa: #25D366; --text: #e8eef8; --muted: #8b9bb4;
+      --bg: #0b141a; --card: #111b21; --line: #2a3942;
+      --wa: #25D366; --wa-dark: #1da851; --text: #e9edef; --muted: #8696a0;
       --safe-b: env(safe-area-inset-bottom, 0px);
       --safe-t: env(safe-area-inset-top, 0px);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; height: 100%; }
+    html, body { margin: 0; height: 100%; }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       background: var(--bg); color: var(--text);
-      overscroll-behavior: none;
     }
     header {
       padding: calc(0.85rem + var(--safe-t)) 1rem 0.85rem;
-      border-bottom: 1px solid var(--line);
-      display: flex; align-items: center; justify-content: space-between;
+      background: #202c33; border-bottom: 1px solid var(--line);
       position: sticky; top: 0; z-index: 20;
-      background: rgba(15,20,25,.96);
     }
-    header h1 { font-size: 1.05rem; margin: 0; color: #7dd3fc; }
-    header span { font-size: .72rem; color: var(--muted); display: block; }
-    main { max-width: 520px; margin: 0 auto; padding: 1rem 1rem calc(7rem + var(--safe-b)); }
+    header h1 { margin: 0; font-size: 1.1rem; color: var(--wa); }
+    header p { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--muted); }
+    main { max-width: 480px; margin: 0 auto; padding: 1rem 1rem calc(7.5rem + var(--safe-b)); }
+    .hero {
+      background: linear-gradient(160deg, #1f2c34, #111b21);
+      border: 1px solid var(--line); border-radius: 16px; padding: 1.1rem;
+      margin-bottom: 0.85rem;
+    }
+    .hero ol { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.9rem; line-height: 1.55; }
+    .hero ol strong { color: var(--text); }
     .card {
       background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-      padding: 1rem; margin-bottom: 0.85rem;
+      padding: 1rem; margin-bottom: 0.75rem;
     }
-    .card h2 { margin: 0 0 0.5rem; font-size: 0.95rem; color: #a5f3fc; }
     .muted { color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
     label { display: block; font-size: 0.75rem; color: var(--muted); margin: 0.55rem 0 0.3rem; }
     input, textarea {
-      width: 100%; background: #0d1520; border: 1px solid var(--line); color: var(--text);
-      border-radius: 10px; padding: 0.75rem 0.85rem; font-size: 16px; /* 16px evita zoom iOS */
+      width: 100%; background: #2a3942; border: 1px solid transparent; color: var(--text);
+      border-radius: 10px; padding: 0.8rem 0.85rem; font-size: 16px;
     }
-    textarea { min-height: 88px; resize: vertical; }
-    /* Botones táctiles grandes */
-    button, .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-height: 48px; padding: 0.75rem 1.1rem;
-      border: 0; border-radius: 12px; font-weight: 700; font-size: 0.95rem;
-      cursor: pointer; touch-action: manipulation; user-select: none;
+    textarea { min-height: 80px; }
+    button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      min-height: 52px; width: 100%; padding: 0.8rem 1rem;
+      border: 0; border-radius: 14px; font-weight: 700; font-size: 1rem;
+      cursor: pointer; touch-action: manipulation;
     }
-    button:active, .btn:active { transform: scale(0.98); opacity: 0.92; }
-    .btn-primary { background: var(--fb); color: #fff; width: 100%; }
-    .btn-wa { background: var(--wa); color: #052e16; width: 100%; }
-    .btn-ghost {
-      background: #243044; color: var(--text); border: 1px solid var(--line);
+    button:active { transform: scale(0.98); }
+    .btn-wa { background: var(--wa); color: #054c22; }
+    .btn-wa:disabled { opacity: 0.5; }
+    .btn-dark { background: #2a3942; color: var(--text); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); min-height: 44px; width: auto; padding: 0.45rem 0.85rem; }
+    .stack { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.75rem; }
+    .steps {
+      display: flex; gap: 0.35rem; margin-bottom: 0.85rem;
     }
-    .btn-row { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.75rem; }
-    .btn-row.horizontal { flex-direction: row; flex-wrap: wrap; }
-    .btn-row.horizontal > * { flex: 1; min-width: 120px; }
-
-    /* FAB — siempre encima */
+    .steps span {
+      flex: 1; text-align: center; font-size: 0.72rem; padding: 0.4rem;
+      border-radius: 999px; background: #1f2c34; color: var(--muted);
+    }
+    .steps span.on { background: rgba(37,211,102,.2); color: var(--wa); font-weight: 700; }
     .fab {
-      position: fixed;
-      right: max(1rem, env(safe-area-inset-right));
-      bottom: calc(1.25rem + var(--safe-b));
-      width: 60px; height: 60px; border-radius: 50%;
-      background: var(--fb); color: #fff; font-size: 2rem; font-weight: 400;
-      z-index: 9999; border: 0;
-      box-shadow: 0 8px 28px rgba(24,119,242,.5);
+      position: fixed; right: 1rem; bottom: calc(1.25rem + var(--safe-b));
+      width: 64px; height: 64px; border-radius: 50%; border: 0;
+      background: var(--wa); color: #054c22; font-size: 2rem; font-weight: 400;
+      z-index: 9999; box-shadow: 0 10px 30px rgba(37,211,102,.4);
       display: flex; align-items: center; justify-content: center;
       touch-action: manipulation;
     }
-    .fab-wa {
-      bottom: calc(5.5rem + var(--safe-b));
-      background: var(--wa); color: #052e16; font-size: 1.4rem;
-      box-shadow: 0 8px 28px rgba(37,211,102,.4);
-    }
-
-    /* Panel a pantalla completa en móvil */
     .sheet {
-      position: fixed; inset: 0; z-index: 10000;
-      background: var(--bg);
+      position: fixed; inset: 0; z-index: 10000; background: var(--bg);
       display: none; flex-direction: column;
       padding: calc(0.75rem + var(--safe-t)) 1rem calc(1rem + var(--safe-b));
       overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -88,226 +82,179 @@
     .sheet.open { display: flex; }
     .sheet-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 0.75rem; gap: 0.5rem;
+      margin-bottom: 0.5rem;
     }
-    .sheet-head strong { font-size: 1.05rem; }
     .stage {
-      background: #000; border-radius: 12px; overflow: hidden; min-height: 180px;
-      margin: 0.5rem 0;
+      background: #000; border-radius: 14px; overflow: hidden; margin: 0.5rem 0;
     }
-    .stage video, .stage canvas, .stage img {
-      width: 100%; display: block; max-height: 42vh; object-fit: contain;
-    }
+    .stage canvas, .stage img { width: 100%; display: block; max-height: 48vh; object-fit: contain; }
     #cropCanvas { touch-action: none; }
-    .preview-post { background: #fff; color: #111; border-radius: 12px; overflow: hidden; }
-    .preview-post .ph { padding: 0.75rem; display: flex; gap: 0.55rem; align-items: center; }
-    .preview-post .av { width: 40px; height: 40px; border-radius: 50%; background: var(--fb); }
-    .preview-post .body { padding: 0 0.75rem 0.75rem; font-size: 0.95rem; white-space: pre-wrap; }
-    .preview-post img { width: 100%; display: block; }
+    .card-preview {
+      border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
+      background: #fff; margin: 0.5rem 0 0.75rem;
+    }
+    .card-preview img { width: 100%; display: block; }
     .toast {
       position: fixed; left: 50%; transform: translateX(-50%);
-      bottom: calc(8rem + var(--safe-b));
-      background: #1e293b; border: 1px solid var(--line);
-      padding: 0.65rem 1.1rem; border-radius: 999px;
-      font-size: 0.85rem; z-index: 10001; display: none;
-      max-width: 90%; text-align: center; pointer-events: none;
+      bottom: calc(6.5rem + var(--safe-b));
+      background: #1f2c34; border: 1px solid var(--line);
+      padding: 0.7rem 1.15rem; border-radius: 999px; font-size: 0.85rem;
+      z-index: 10001; display: none; max-width: 92%; text-align: center;
+      pointer-events: none;
     }
     .toast.show { display: block; }
-    .hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
-    .toggle-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.85rem; background: #0d1520; border: 1px solid var(--line);
-      border-radius: 12px; margin: 0.4rem 0; min-height: 52px;
-    }
-    .toggle-row input { width: 22px; height: 22px; }
+    .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+    .status-ok { color: var(--wa); }
+    .status-warn { color: #f5c26b; }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h1>VentasPlus</h1>
-      <span>Captura · edita · WhatsApp / Facebook</span>
-    </div>
-    <button type="button" class="btn-ghost" id="btnSettings" style="min-height:40px;padding:0.4rem 0.75rem">Ajustes</button>
+    <h1>VentasPlus</h1>
+    <p>Crea la card (foto + precio) y envíala a WhatsApp</p>
   </header>
 
   <main>
-    <div class="card">
-      <h2>En el móvil</h2>
-      <p class="muted">
-        Usa <strong>+</strong> para crear un anuncio con foto (cámara o galería).<br/>
-        Usa el botón verde para <strong>abrir WhatsApp</strong> con el texto listo.
-      </p>
+    <div class="hero">
+      <strong>En 3 pasos</strong>
+      <ol>
+        <li><strong>Foto</strong> — cámara o galería</li>
+        <li><strong>Datos</strong> — nombre, precio, detalle</li>
+        <li><strong>WhatsApp</strong> — se envía la <strong>card completa</strong> (imagen con todo)</li>
+      </ol>
     </div>
     <div class="card">
-      <h2>Última acción</h2>
-      <p class="muted" id="lastResult">Nada todavía.</p>
+      <strong style="color:#e9edef">Última acción</strong>
+      <p class="muted" id="lastResult" style="margin:0.4rem 0 0">Pulsa el botón verde + para empezar.</p>
     </div>
   </main>
 
-  <!-- FAB WhatsApp rápido -->
-  <button type="button" class="fab fab-wa" id="fabWA" aria-label="Abrir WhatsApp" title="WhatsApp">WA</button>
-  <!-- FAB principal -->
-  <button type="button" class="fab" id="fab" aria-label="Nuevo anuncio">+</button>
+  <button type="button" class="fab" id="fab" aria-label="Nuevo">+</button>
   <div class="toast" id="toast"></div>
+  <input type="file" id="fileInput" class="hidden" accept="image/*" capture="environment" />
 
-  <input type="file" id="fileInput" class="hidden-file" accept="image/*" capture="environment" />
-
-  <!-- Sheet pantalla completa -->
   <div class="sheet" id="sheet">
     <div class="sheet-head">
-      <strong id="stepTitle">Nuevo anuncio</strong>
-      <button type="button" class="btn-ghost" id="btnClose" style="min-height:40px">Cerrar</button>
+      <strong id="sheetTitle">Nuevo anuncio</strong>
+      <button type="button" class="btn-ghost" id="btnClose">Cerrar</button>
+    </div>
+    <div class="steps" id="stepsBar">
+      <span id="st1" class="on">1 Foto</span>
+      <span id="st2">2 Datos</span>
+      <span id="st3">3 Enviar</span>
     </div>
 
-    <div id="stepPick">
-      <p class="muted">En móvil la captura de pantalla del sistema a menudo no está disponible. Mejor: cámara o galería.</p>
-      <div class="btn-row">
-        <button type="button" class="btn-primary" id="btnCamera">📷 Tomar / elegir foto</button>
-        <button type="button" class="btn-ghost" id="btnScreen">🖥️ Compartir pantalla (PC)</button>
+    <!-- 1 FOTO -->
+    <div id="stepPhoto">
+      <p class="muted">Elige la foto del producto. Luego podrás recortar y poner texto.</p>
+      <div class="stack">
+        <button type="button" class="btn-wa" id="btnCamera">📷 Elegir o tomar foto</button>
+        <button type="button" class="btn-dark" id="btnScreen">🖥️ Pantalla (mejor en PC)</button>
       </div>
       <div class="stage" id="videoStage" style="display:none">
-        <video id="liveVideo" autoplay playsinline muted></video>
+        <video id="liveVideo" autoplay playsinline muted style="width:100%;max-height:40vh"></video>
       </div>
-      <div class="btn-row" id="snapRow" style="display:none">
-        <button type="button" class="btn-primary" id="btnSnap">Tomar foto de la pantalla</button>
+      <div class="stack" id="snapRow" style="display:none">
+        <button type="button" class="btn-wa" id="btnSnap">Tomar foto de la pantalla</button>
       </div>
-    </div>
-
-    <div id="stepEdit" style="display:none">
-      <p class="muted">Recorta arrastrando · añade texto · continúa</p>
-      <div class="stage"><canvas id="cropCanvas"></canvas></div>
-      <label>Texto sobre la imagen</label>
-      <input id="overlayText" placeholder="¡Oferta!" autocomplete="off" />
-      <div class="btn-row">
-        <button type="button" class="btn-ghost" id="btnApplyText">Aplicar texto</button>
-        <button type="button" class="btn-ghost" id="btnResetCrop">Quitar recorte</button>
-        <button type="button" class="btn-primary" id="btnConfirmImage">Continuar</button>
-      </div>
-    </div>
-
-    <div id="stepPublish" style="display:none">
-      <div class="preview-post">
-        <div class="ph">
-          <div class="av"></div>
-          <div><strong>Vista previa</strong></div>
+      <!-- edit sub -->
+      <div id="editBlock" style="display:none">
+        <p class="muted">Opcional: recorta o añade texto sobre la foto.</p>
+        <div class="stage"><canvas id="cropCanvas"></canvas></div>
+        <label>Texto en la foto (opcional)</label>
+        <input id="overlayText" placeholder="¡Oferta!" autocomplete="off" />
+        <div class="stack">
+          <button type="button" class="btn-dark" id="btnApplyText">Aplicar texto en foto</button>
+          <button type="button" class="btn-dark" id="btnResetCrop">Quitar recorte</button>
+          <button type="button" class="btn-wa" id="btnToData">Continuar → datos del producto</button>
         </div>
-        <div class="body" id="previewBody"></div>
-        <img id="previewImg" alt="producto" />
       </div>
-      <label>Nombre</label>
-      <input id="prodName" placeholder="Producto" autocomplete="off" />
-      <label>Precio</label>
-      <input id="prodPrice" placeholder="$49.990" inputmode="decimal" autocomplete="off" />
-      <label>Descripción</label>
-      <textarea id="prodDesc" placeholder="Detalles…"></textarea>
-
-      <div class="toggle-row">
-        <span>Abrir WhatsApp con el texto</span>
-        <input type="checkbox" id="wantWA" checked />
-      </div>
-      <div class="toggle-row">
-        <span>Menú compartir (Facebook, etc.)</span>
-        <input type="checkbox" id="wantShare" checked />
-      </div>
-
-      <div class="btn-row">
-        <button type="button" class="btn-wa" id="btnOpenWA">Abrir WhatsApp ahora</button>
-        <button type="button" class="btn-primary" id="btnPublish">Compartir / guardar</button>
-        <button type="button" class="btn-ghost" id="btnBackEdit">Volver a editar</button>
-      </div>
-      <p class="muted" id="publishStatus"></p>
     </div>
 
-    <div id="stepSettings" style="display:none">
-      <label>URL de la API (opcional)</label>
-      <input id="apiBase" placeholder="https://ventasplus-api.onrender.com" />
-      <p class="muted">Solo hace falta si usas envío automático a grupos vía servidor OpenWA.</p>
-      <div class="btn-row">
-        <button type="button" class="btn-primary" id="btnSaveSettings">Guardar</button>
+    <!-- 2 DATOS -->
+    <div id="stepData" style="display:none">
+      <p class="muted">Estos datos se dibujan en la card junto con la foto.</p>
+      <label>Nombre del producto *</label>
+      <input id="prodName" placeholder="Ej. Zapatillas Nike" autocomplete="off" />
+      <label>Precio *</label>
+      <input id="prodPrice" placeholder="Ej. $49.990" inputmode="decimal" autocomplete="off" />
+      <label>Descripción</label>
+      <textarea id="prodDesc" placeholder="Tallas, color, entrega…"></textarea>
+      <div class="stack">
+        <button type="button" class="btn-wa" id="btnToSend">Ver card y enviar a WhatsApp</button>
+        <button type="button" class="btn-dark" id="btnBackPhoto">← Volver a la foto</button>
       </div>
+    </div>
+
+    <!-- 3 ENVIAR -->
+    <div id="stepSend" style="display:none">
+      <p class="muted">Esta es la <strong style="color:#e9edef">card completa</strong> (foto + datos). Se enviará como imagen a WhatsApp.</p>
+      <div class="card-preview">
+        <img id="cardPreview" alt="Card del producto" />
+      </div>
+      <div class="stack">
+        <button type="button" class="btn-wa" id="btnSendWA">💚 Enviar card a WhatsApp</button>
+        <button type="button" class="btn-dark" id="btnShareOther">Compartir en otras apps (Facebook…)</button>
+        <button type="button" class="btn-dark" id="btnDownload">Descargar card</button>
+        <button type="button" class="btn-dark" id="btnBackData">← Editar datos</button>
+      </div>
+      <p class="muted" id="sendStatus" style="margin-top:0.75rem"></p>
     </div>
   </div>
 
 <script>
 (function () {
-  const LS_API = 'vp_api_base';
   const $ = (id) => document.getElementById(id);
   const toast = (msg) => {
     const t = $('toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(t._t);
-    t._t = setTimeout(() => t.classList.remove('show'), 3200);
+    t._t = setTimeout(() => t.classList.remove('show'), 3500);
   };
 
   let stream = null, sourceImg = null, cropRect = null, dragging = false;
-  let startX = 0, startY = 0, finalDataURL = null;
+  let startX = 0, startY = 0;
+  let productPhotoDataURL = null; // foto del producto (recortada)
+  let cardDataURL = null;         // card completa lista para WhatsApp
 
-  function apiBase() {
-    const saved = localStorage.getItem(LS_API);
-    if (saved) return saved.replace(/\/$/, '');
-    return 'https://ventasplus-api.onrender.com';
-  }
-
-  function openSheet(step) {
-    $('sheet').classList.add('open');
-    showStep(step || 'pick');
-  }
+  function openSheet() { $('sheet').classList.add('open'); showStep('photo'); }
   function closeSheet() {
     $('sheet').classList.remove('open');
     stopStream();
   }
+  function setSteps(n) {
+    $('st1').className = n >= 1 ? 'on' : '';
+    $('st2').className = n >= 2 ? 'on' : '';
+    $('st3').className = n >= 3 ? 'on' : '';
+  }
   function showStep(name) {
-    $('stepPick').style.display = name === 'pick' ? 'block' : 'none';
-    $('stepEdit').style.display = name === 'edit' ? 'block' : 'none';
-    $('stepPublish').style.display = name === 'publish' ? 'block' : 'none';
-    $('stepSettings').style.display = name === 'settings' ? 'block' : 'none';
-    const titles = {
-      pick: '1 · Foto',
-      edit: '2 · Editar',
-      publish: '3 · Publicar',
-      settings: 'Ajustes',
-    };
-    $('stepTitle').textContent = titles[name] || 'VentasPlus';
+    $('stepPhoto').style.display = name === 'photo' ? 'block' : 'none';
+    $('stepData').style.display = name === 'data' ? 'block' : 'none';
+    $('stepSend').style.display = name === 'send' ? 'block' : 'none';
+    if (name === 'photo') { setSteps(1); $('sheetTitle').textContent = '1 · Foto del producto'; }
+    if (name === 'data') { setSteps(2); $('sheetTitle').textContent = '2 · Datos'; }
+    if (name === 'send') { setSteps(3); $('sheetTitle').textContent = '3 · Enviar a WhatsApp'; }
   }
 
   function stopStream() {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     stream = null;
-    const v = $('liveVideo');
-    if (v) v.srcObject = null;
+    $('liveVideo').srcObject = null;
     $('videoStage').style.display = 'none';
     $('snapRow').style.display = 'none';
   }
 
-  // --- FAB / navegación (listeners directos, fiables en móvil) ---
   $('fab').addEventListener('click', function (e) {
     e.preventDefault();
-    e.stopPropagation();
-    openSheet('pick');
-  });
-  $('fabWA').addEventListener('click', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-    openWhatsAppQuick();
+    openSheet();
   });
   $('btnClose').addEventListener('click', function (e) {
     e.preventDefault();
     closeSheet();
   });
-  $('btnSettings').addEventListener('click', function (e) {
-    e.preventDefault();
-    $('apiBase').value = apiBase();
-    openSheet('settings');
-  });
-  $('btnSaveSettings').addEventListener('click', function () {
-    localStorage.setItem(LS_API, $('apiBase').value.trim());
-    toast('Guardado');
-    closeSheet();
-  });
 
-  // Cámara / galería (ruta principal en móvil)
+  // --- Foto ---
   $('btnCamera').addEventListener('click', function (e) {
     e.preventDefault();
     $('fileInput').click();
@@ -316,41 +263,34 @@
     const f = this.files && this.files[0];
     if (!f) return;
     const reader = new FileReader();
-    reader.onload = function () {
-      loadSource(reader.result);
-    };
+    reader.onload = function () { loadSource(reader.result); };
     reader.readAsDataURL(f);
     this.value = '';
   });
 
-  // Pantalla (sobre todo PC)
   $('btnScreen').addEventListener('click', async function (e) {
     e.preventDefault();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      toast('En este móvil no hay captura de pantalla. Usa cámara o galería.');
+      toast('En este móvil usa cámara o galería');
       return;
     }
     try {
       stopStream();
       stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const v = $('liveVideo');
       $('videoStage').style.display = 'block';
       $('snapRow').style.display = 'flex';
-      v.srcObject = stream;
-      await v.play();
-      toast('Pantalla lista — pulsa Tomar foto');
-    } catch (err) {
-      toast('No se pudo compartir pantalla. Usa cámara.');
+      $('liveVideo').srcObject = stream;
+      await $('liveVideo').play();
+    } catch (_) {
+      toast('No se pudo usar la pantalla');
     }
   });
-
   $('btnSnap').addEventListener('click', function (e) {
     e.preventDefault();
     const v = $('liveVideo');
-    if (!v.videoWidth) return toast('Espera un momento…');
+    if (!v.videoWidth) return toast('Espera…');
     const c = document.createElement('canvas');
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
+    c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0);
     stopStream();
     loadSource(c.toDataURL('image/jpeg', 0.92));
@@ -359,8 +299,9 @@
   function loadSource(dataUrl) {
     sourceImg = new Image();
     sourceImg.onload = function () {
+      $('editBlock').style.display = 'block';
       setupCanvas();
-      showStep('edit');
+      toast('Foto lista — puedes recortar o continuar');
     };
     sourceImg.src = dataUrl;
   }
@@ -382,12 +323,11 @@
     if (cropRect && cropRect.w > 2) {
       ctx.fillStyle = 'rgba(0,0,0,.45)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const { x, y, w, h } = cropRect;
-      ctx.clearRect(x, y, w, h);
+      ctx.clearRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
       ctx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = '#1877F2';
+      ctx.strokeStyle = '#25D366';
       ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, w, h);
+      ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
     }
   }
   function pos(e) {
@@ -410,10 +350,8 @@
     e.preventDefault();
     const p = pos(e);
     cropRect = {
-      x: Math.min(startX, p.x),
-      y: Math.min(startY, p.y),
-      w: Math.abs(p.x - startX),
-      h: Math.abs(p.y - startY),
+      x: Math.min(startX, p.x), y: Math.min(startY, p.y),
+      w: Math.abs(p.x - startX), h: Math.abs(p.y - startY),
     };
     redraw();
   }
@@ -448,8 +386,7 @@
     sourceImg.src = c.toDataURL('image/jpeg', 0.92);
   });
 
-  $('btnConfirmImage').addEventListener('click', function (e) {
-    e.preventDefault();
+  function bakeProductPhoto() {
     const c = $('cropCanvas');
     let out = c;
     if (cropRect && cropRect.w > 8 && cropRect.h > 8) {
@@ -459,95 +396,240 @@
       t.getContext('2d').drawImage(c, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, t.width, t.height);
       out = t;
     }
-    finalDataURL = out.toDataURL('image/jpeg', 0.9);
-    $('previewImg').src = finalDataURL;
-    updatePreview();
-    showStep('publish');
-  });
-  $('btnBackEdit').addEventListener('click', function (e) {
+    productPhotoDataURL = out.toDataURL('image/jpeg', 0.92);
+  }
+
+  $('btnToData').addEventListener('click', function (e) {
     e.preventDefault();
-    showStep('edit');
+    if (!sourceImg) return toast('Primero elige una foto');
+    bakeProductPhoto();
+    showStep('data');
   });
-
-  function captionText() {
-    const name = $('prodName').value.trim();
-    const price = $('prodPrice').value.trim();
-    const desc = $('prodDesc').value.trim();
-    let body = '';
-    if (name) body += name + '\n';
-    if (price) body += 'Precio: ' + price + '\n';
-    if (desc) body += desc;
-    return body.trim() || 'Oferta VentasPlus';
-  }
-  function updatePreview() {
-    $('previewBody').textContent = captionText();
-  }
-  ['prodName', 'prodPrice', 'prodDesc'].forEach(function (id) {
-    $(id).addEventListener('input', updatePreview);
-  });
-
-  function openWhatsAppQuick(text) {
-    const t = encodeURIComponent(text || captionText() || 'Hola, te comparto esta oferta.');
-    // Abre la app WhatsApp del usuario (no se puede embeber WhatsApp dentro de la web)
-    window.location.href = 'https://wa.me/?text=' + t;
-  }
-
-  $('btnOpenWA').addEventListener('click', function (e) {
+  $('btnBackPhoto').addEventListener('click', function (e) {
     e.preventDefault();
-    openWhatsAppQuick(captionText());
-    $('lastResult').textContent = 'WhatsApp abierto con el texto del producto.';
-    toast('Abriendo WhatsApp…');
+    showStep('photo');
+  });
+  $('btnBackData').addEventListener('click', function (e) {
+    e.preventDefault();
+    showStep('data');
   });
 
-  async function shareOrDownload() {
-    const text = captionText();
-    if (finalDataURL && navigator.share) {
-      try {
-        const res = await fetch(finalDataURL);
-        const blob = await res.blob();
-        const file = new File([blob], 'producto.jpg', { type: blob.type || 'image/jpeg' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text: text, title: 'VentasPlus' });
-          return 'shared-files';
-        }
-        await navigator.share({ text: text, title: 'VentasPlus' });
-        return 'shared-text';
-      } catch (err) {
-        if (err && err.name === 'AbortError') return 'cancel';
+  // --- Card completa: foto + banda de datos ---
+  function wrapText(ctx, text, maxWidth) {
+    const words = (text || '').split(/\s+/);
+    const lines = [];
+    let line = '';
+    for (let i = 0; i < words.length; i++) {
+      const test = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = words[i];
+      } else {
+        line = test;
       }
     }
-    try { await navigator.clipboard.writeText(text); } catch (_) {}
-    if (finalDataURL) {
-      const a = document.createElement('a');
-      a.href = finalDataURL;
-      a.download = 'ventasplus.jpg';
-      a.click();
-    }
-    return 'download';
+    if (line) lines.push(line);
+    return lines;
   }
 
-  $('btnPublish').addEventListener('click', async function (e) {
-    e.preventDefault();
-    const status = $('publishStatus');
-    status.textContent = '…';
-    const wantWA = $('wantWA').checked;
-    const wantShare = $('wantShare').checked;
-    const notes = [];
+  function buildCardImage() {
+    return new Promise(function (resolve, reject) {
+      if (!productPhotoDataURL) return reject(new Error('Sin foto'));
+      const img = new Image();
+      img.onload = function () {
+        const W = 1080;
+        const pad = 48;
+        const name = $('prodName').value.trim() || 'Producto';
+        const price = $('prodPrice').value.trim() || '';
+        const desc = $('prodDesc').value.trim() || '';
 
-    if (wantWA) {
-      openWhatsAppQuick(captionText());
-      notes.push('WhatsApp');
+        // medir texto
+        const measure = document.createElement('canvas').getContext('2d');
+        measure.font = 'bold 52px system-ui, sans-serif';
+        const nameLines = wrapText(measure, name, W - pad * 2);
+        measure.font = 'bold 64px system-ui, sans-serif';
+        const priceLines = price ? [price] : [];
+        measure.font = '36px system-ui, sans-serif';
+        const descLines = desc ? wrapText(measure, desc, W - pad * 2).slice(0, 6) : [];
+
+        const textBlock =
+          pad +
+          nameLines.length * 62 +
+          (priceLines.length ? 24 + 72 : 0) +
+          (descLines.length ? 20 + descLines.length * 46 : 0) +
+          pad;
+
+        const imgH = Math.round((W * img.height) / img.width);
+        const H = imgH + textBlock;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        // fondo
+        ctx.fillStyle = '#111b21';
+        ctx.fillRect(0, 0, W, H);
+
+        // foto
+        ctx.drawImage(img, 0, 0, W, imgH);
+
+        // franja inferior
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, imgH, W, textBlock);
+
+        let y = imgH + pad + 52;
+        ctx.fillStyle = '#111b21';
+        ctx.font = 'bold 52px system-ui, sans-serif';
+        nameLines.forEach(function (ln) {
+          ctx.fillText(ln, pad, y);
+          y += 62;
+        });
+
+        if (price) {
+          y += 8;
+          ctx.fillStyle = '#128C7E';
+          ctx.font = 'bold 64px system-ui, sans-serif';
+          ctx.fillText(price, pad, y);
+          y += 72;
+        }
+
+        if (descLines.length) {
+          y += 4;
+          ctx.fillStyle = '#3b4a54';
+          ctx.font = '36px system-ui, sans-serif';
+          descLines.forEach(function (ln) {
+            ctx.fillText(ln, pad, y);
+            y += 46;
+          });
+        }
+
+        // marca sutil
+        ctx.fillStyle = '#25D366';
+        ctx.font = 'bold 28px system-ui, sans-serif';
+        ctx.fillText('VentasPlus', W - pad - ctx.measureText('VentasPlus').width, H - 28);
+
+        cardDataURL = canvas.toDataURL('image/jpeg', 0.92);
+        resolve(cardDataURL);
+      };
+      img.onerror = function () { reject(new Error('No se pudo cargar la foto')); };
+      img.src = productPhotoDataURL;
+    });
+  }
+
+  $('btnToSend').addEventListener('click', async function (e) {
+    e.preventDefault();
+    if (!$('prodName').value.trim() && !$('prodPrice').value.trim()) {
+      return toast('Pon al menos nombre o precio');
     }
-    if (wantShare) {
-      const r = await shareOrDownload();
-      if (r === 'shared-files' || r === 'shared-text') notes.push('Compartir');
-      else if (r === 'download') notes.push('Imagen descargada + texto copiado');
-      else if (r === 'cancel') notes.push('Compartir cancelado');
+    try {
+      toast('Generando card…');
+      const url = await buildCardImage();
+      $('cardPreview').src = url;
+      showStep('send');
+    } catch (err) {
+      toast(err.message || 'Error al crear la card');
     }
-    const msg = notes.length ? notes.join(' · ') : 'Listo';
-    status.textContent = msg;
-    $('lastResult').textContent = msg + ' — ' + ($('prodName').value.trim() || 'sin nombre');
-    toast(msg);
+  });
+
+  async function dataURLToFile(dataURL, name) {
+    const res = await fetch(dataURL);
+    const blob = await res.blob();
+    return new File([blob], name, { type: blob.type || 'image/jpeg' });
+  }
+
+  /**
+   * WhatsApp no acepta imagen por wa.me (solo texto).
+   * Camino correcto: Web Share con archivo → el usuario elige WhatsApp.
+   * Si no se puede: descarga la card + abre WhatsApp con el pie de foto.
+   */
+  async function sendCardToWhatsApp() {
+    if (!cardDataURL) {
+      await buildCardImage();
+    }
+    const caption =
+      ($('prodName').value.trim() || 'Producto') +
+      ($('prodPrice').value.trim() ? '\nPrecio: ' + $('prodPrice').value.trim() : '') +
+      ($('prodDesc').value.trim() ? '\n' + $('prodDesc').value.trim() : '');
+
+    const file = await dataURLToFile(cardDataURL, 'ventasplus-card.jpg');
+    const status = $('sendStatus');
+
+    // 1) Compartir nativo con imagen (mejor: llega foto a WhatsApp)
+    if (navigator.share) {
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            text: caption,
+            title: $('prodName').value.trim() || 'VentasPlus',
+          });
+          status.innerHTML = '<span class="status-ok">Listo.</span> Si elegiste WhatsApp, la <strong>card con foto</strong> ya va en el chat.';
+          $('lastResult').textContent = 'Card compartida (con foto) — ' + ($('prodName').value.trim() || 'producto');
+          toast('Elige WhatsApp en el menú para enviar la foto');
+          return;
+        }
+        // Algunos navegadores no permiten files pero sí share texto
+        await navigator.share({ text: caption, title: 'VentasPlus' });
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          status.textContent = 'Compartir cancelado.';
+          return;
+        }
+      }
+    }
+
+    // 2) Fallback: descargar card + abrir WhatsApp con texto
+    const a = document.createElement('a');
+    a.href = cardDataURL;
+    a.download = 'ventasplus-card.jpg';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    status.innerHTML =
+      '<span class="status-warn">Tu navegador no adjunta la foto solo.</span> ' +
+      'Se descargó la <strong>card completa</strong>. Abre WhatsApp y adjúntala desde Galería (el texto ya va listo).';
+    setTimeout(function () {
+      window.location.href = 'https://wa.me/?text=' + encodeURIComponent(caption + '\n\n(Adjunta la imagen ventasplus-card de tu galería)');
+    }, 600);
+    $('lastResult').textContent = 'Card descargada + WhatsApp — adjunta la imagen';
+    toast('Card descargada — adjúntala en WhatsApp');
+  }
+
+  $('btnSendWA').addEventListener('click', function (e) {
+    e.preventDefault();
+    sendCardToWhatsApp().catch(function (err) {
+      $('sendStatus').textContent = err.message || String(err);
+      toast('No se pudo enviar');
+    });
+  });
+
+  $('btnShareOther').addEventListener('click', async function (e) {
+    e.preventDefault();
+    if (!cardDataURL) await buildCardImage();
+    try {
+      const file = await dataURLToFile(cardDataURL, 'ventasplus-card.jpg');
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: $('prodName').value.trim(), title: 'VentasPlus' });
+        toast('Menú compartir abierto');
+        return;
+      }
+    } catch (_) {}
+    const a = document.createElement('a');
+    a.href = cardDataURL;
+    a.download = 'ventasplus-card.jpg';
+    a.click();
+    toast('Card descargada');
+  });
+
+  $('btnDownload').addEventListener('click', function (e) {
+    e.preventDefault();
+    if (!cardDataURL) return;
+    const a = document.createElement('a');
+    a.href = cardDataURL;
+    a.download = 'ventasplus-card.jpg';
+    a.click();
+    toast('Card guardada');
   });
 })();
 </script>
