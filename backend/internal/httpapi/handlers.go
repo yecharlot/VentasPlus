@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -15,14 +13,16 @@ import (
 )
 
 type Handlers struct {
-	CF *cloudflare.Client
-	WA *whatsapp.Client
+	CF    *cloudflare.Client
+	WA    *whatsapp.Client
+	Cloud *whatsapp.CloudClient
 }
 
 func New() *Handlers {
 	return &Handlers{
-		CF: cloudflare.NewFromEnv(),
-		WA: whatsapp.NewFromEnv(),
+		CF:    cloudflare.NewFromEnv(),
+		WA:    whatsapp.NewFromEnv(),
+		Cloud: whatsapp.NewCloudFromEnv(),
 	}
 }
 
@@ -31,6 +31,8 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/info", h.info)
 	mux.HandleFunc("/api/publish", h.publish)
 	mux.HandleFunc("/api/whatsapp/status", h.waStatus)
+	mux.HandleFunc("/api/whatsapp/connect", h.waConnect)
+	mux.HandleFunc("/api/whatsapp/pairing-code", h.waPairing)
 	mux.HandleFunc("/api/whatsapp/qr", h.waQR)
 	mux.HandleFunc("/api/whatsapp/groups", h.waGroups)
 	mux.HandleFunc("/", h.root)
@@ -44,9 +46,9 @@ func (h *Handlers) root(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"service": "VentasPlus API",
-		"mode":    "share-facebook + openwa-whatsapp",
 		"health":  "/health",
 		"publish": "POST /api/publish",
+		"connect": "POST /api/whatsapp/connect",
 	})
 }
 
@@ -59,82 +61,166 @@ func (h *Handlers) health(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) info(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	provider := whatsapp.ActiveProvider()
+	connected := false
+	if provider == "cloud" {
+		connected = h.Cloud.Enabled()
+	} else if provider == "openwa" && h.WA.SessionID != "" {
+		if st, err := h.WA.Status(""); err == nil {
+			s, _ := st["status"].(string)
+			s = strings.ToLower(s)
+			connected = s == "ready" || s == "authenticated" || s == "connected"
+		}
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"ok":             true,
-		"mode":           "user-auth",
-		"facebook":       "Web Share / abrir app del usuario (sin token servidor)",
-		"whatsapp":       "OpenWA QR del usuario",
-		"openwa_url":     os.Getenv("OPENWA_URL"),
-		"openwa_session": os.Getenv("OPENWA_SESSION_ID") != "",
-		"cf_workers":     os.Getenv("CLOUDFLARE_WORKERS_URL"),
+		"ok":               true,
+		"whatsapp_provider": provider,
+		"openwa_url":       os.Getenv("OPENWA_URL"),
+		"openwa_session":   h.WA.SessionID != "",
+		"openwa_connected": connected && provider == "openwa",
+		"cloud_enabled":    h.Cloud.Enabled(),
+		"cloud_connected":  connected && provider == "cloud",
+		"pairing_code":     provider == "openwa", // código de 8 chars sin QR
+		"cf_workers":       os.Getenv("CLOUDFLARE_WORKERS_URL"),
 	})
-}
-
-func (h *Handlers) proxyOpenWA(method, path string, body io.Reader) (int, []byte, error) {
-	base := strings.TrimRight(os.Getenv("OPENWA_URL"), "/")
-	if base == "" {
-		return 0, nil, fmt.Errorf("OPENWA_URL no configurada — conecta OpenWA o deja WhatsApp solo en modo compartir")
-	}
-	req, err := http.NewRequest(method, base+path, body)
-	if err != nil {
-		return 0, nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if k := os.Getenv("OPENWA_API_KEY"); k != "" {
-		req.Header.Set("X-API-Key", k)
-	}
-	client := &http.Client{Timeout: 30 * time.Second}
-	res, err := client.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
-	return res.StatusCode, raw, nil
 }
 
 func (h *Handlers) waStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	sid := os.Getenv("OPENWA_SESSION_ID")
-	if sid == "" {
+	provider := whatsapp.ActiveProvider()
+	if provider == "cloud" {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok": false, "connected": false,
-			"hint": "Define OPENWA_URL y OPENWA_SESSION_ID, o usa Compartir de WhatsApp en la PWA",
+			"ok": true, "provider": "cloud", "connected": h.Cloud.Enabled(),
+			"hint": "Cloud API: sin QR. Usa el número de negocio de Meta.",
 		})
 		return
 	}
-	code, raw, err := h.proxyOpenWA(http.MethodGet, "/api/sessions/"+sid, nil)
-	if err != nil {
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "connected": false, "error": err.Error()})
+	if !h.WA.Enabled() {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok": false, "provider": "none", "connected": false,
+			"hint": "Configura OPENWA_* o WHATSAPP_CLOUD_* en el servidor",
+		})
 		return
 	}
-	var out map[string]interface{}
-	_ = json.Unmarshal(raw, &out)
-	status, _ := out["status"].(string)
-	connected := code < 300 && (status == "ready" || status == "authenticated" || status == "connected")
+	st, err := h.WA.Status("")
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok": false, "provider": "openwa", "connected": false, "error": err.Error(),
+		})
+		return
+	}
+	s, _ := st["status"].(string)
+	s = strings.ToLower(s)
+	connected := s == "ready" || s == "authenticated" || s == "connected"
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"ok": code < 300, "connected": connected, "status": status, "sessionId": sid, "raw": out,
+		"ok": true, "provider": "openwa", "connected": connected, "status": s,
+		"sessionId": h.WA.SessionID, "raw": st,
+	})
+}
+
+// POST { "name": "ventasplus" } — crea/inicia sesión OpenWA
+func (h *Handlers) waConnect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+	if !h.WA.Enabled() {
+		w.WriteHeader(503)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok": false, "error": "OpenWA no configurado (OPENWA_URL / OPENWA_API_KEY)",
+		})
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	id, created, err := h.WA.EnsureSession(req.Name)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": created})
+		return
+	}
+	started, _ := h.WA.StartSession(id)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok": true, "sessionId": id, "started": started,
+		"next": "POST /api/whatsapp/pairing-code con phoneNumber (recomendado) o GET /api/whatsapp/qr",
+	})
+}
+
+// POST { "phoneNumber": "56912345678", "sessionId": "optional" }
+func (h *Handlers) waPairing(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+	if !h.WA.Enabled() {
+		w.WriteHeader(503)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "OpenWA no configurado"})
+		return
+	}
+	var req struct {
+		PhoneNumber string `json:"phoneNumber"`
+		SessionID   string `json:"sessionId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PhoneNumber == "" {
+		http.Error(w, `{"ok":false,"error":"phoneNumber required"}`, 400)
+		return
+	}
+	sid := req.SessionID
+	if sid == "" {
+		var err error
+		sid, _, err = h.WA.EnsureSession("ventasplus")
+		if err != nil {
+			w.WriteHeader(502)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		_, _ = h.WA.StartSession(sid)
+		// pequeño respiro para qr_ready
+		time.Sleep(1500 * time.Millisecond)
+	}
+	out, err := h.WA.RequestPairingCode(sid, req.PhoneNumber)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out, "sessionId": sid})
+		return
+	}
+	code, _ := out["pairingCode"].(string)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok": true, "pairingCode": code, "sessionId": sid, "raw": out,
+		"instructions": "WhatsApp → Dispositivos vinculados → Vincular → Vincular con número → escribe este código",
 	})
 }
 
 func (h *Handlers) waQR(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	sid := os.Getenv("OPENWA_SESSION_ID")
-	if sid == "" {
-		w.WriteHeader(400)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "OPENWA_SESSION_ID no configurada"})
+	if !h.WA.Enabled() {
+		w.WriteHeader(503)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "OpenWA no configurado"})
 		return
 	}
-	// try start then qr
-	_, _, _ = h.proxyOpenWA(http.MethodPost, "/api/sessions/"+sid+"/start", strings.NewReader("{}"))
-	code, raw, err := h.proxyOpenWA(http.MethodGet, "/api/sessions/"+sid+"/qr", nil)
+	sid := h.WA.SessionID
+	if sid == "" {
+		var err error
+		sid, _, err = h.WA.EnsureSession("ventasplus")
+		if err != nil {
+			w.WriteHeader(502)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		_, _ = h.WA.StartSession(sid)
+		time.Sleep(1200 * time.Millisecond)
+	}
+	out, err := h.WA.GetQR(sid)
 	if err != nil {
 		w.WriteHeader(502)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out})
 		return
 	}
-	w.WriteHeader(code)
-	_, _ = w.Write(raw)
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (h *Handlers) waGroups(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +228,7 @@ func (h *Handlers) waGroups(w http.ResponseWriter, r *http.Request) {
 	out, err := h.WA.ListGroups()
 	if err != nil {
 		w.WriteHeader(502)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 	_ = json.NewEncoder(w).Encode(out)
@@ -177,24 +263,43 @@ func (h *Handlers) publish(w http.ResponseWriter, r *http.Request) {
 
 	result := publish.Result{
 		Success: true,
-		Message: "WhatsApp procesado; Facebook vía compartir en el dispositivo",
+		Message: "Publicación procesada",
 		Total:   len(req.Products),
 	}
+	provider := whatsapp.ActiveProvider()
 
-	// Solo WhatsApp automático (OpenWA). Facebook lo hace el usuario con Web Share en la PWA.
 	for _, p := range req.Products {
 		caption := formatCaption(p)
 		for _, dest := range req.Destinations.WhatsApp {
 			var wr map[string]interface{}
 			var err error
+			chat := whatsapp.NormalizeChatID(dest)
 			img := p.ImageURL
 			if img == "" {
 				img = p.ImageBase64
 			}
-			if img != "" {
-				wr, err = h.WA.SendImage(dest, caption, img)
-			} else {
-				wr, err = h.WA.SendText(dest, caption)
+
+			switch provider {
+			case "cloud":
+				// Cloud API: imagen por URL pública; si solo hay base64, enviamos texto
+				if p.ImageURL != "" {
+					wr, err = h.Cloud.SendImageLink(chat, caption, p.ImageURL)
+				} else {
+					wr, err = h.Cloud.SendText(chat, caption)
+					if wr == nil {
+						wr = map[string]interface{}{}
+					}
+					wr["note"] = "Cloud API envió texto; sube la imagen a URL pública para foto automática"
+				}
+			case "openwa":
+				if img != "" {
+					wr, err = h.WA.SendImage(chat, caption, img)
+				} else {
+					wr, err = h.WA.SendText(chat, caption)
+				}
+			default:
+				wr = map[string]interface{}{"ok": false, "error": "WhatsApp no configurado en servidor"}
+				err = nil
 			}
 			if err != nil {
 				if wr == nil {
@@ -202,20 +307,16 @@ func (h *Handlers) publish(w http.ResponseWriter, r *http.Request) {
 				}
 				wr["ok"] = false
 				wr["error"] = err.Error()
-				wr["chatId"] = dest
 			}
+			wr["provider"] = provider
+			wr["chatId"] = chat
 			result.WhatsApp = append(result.WhatsApp, wr)
 		}
 	}
 
 	persist, err := h.CF.SavePublication(map[string]interface{}{
-		"agentId":      req.AgentID,
-		"products":     req.Products,
-		"destinations": req.Destinations,
-		"timestamp":    req.Timestamp,
-		"total":        req.Total,
-		"whatsapp":     result.WhatsApp,
-		"channel":      "wa+share-fb",
+		"agentId": req.AgentID, "products": req.Products, "destinations": req.Destinations,
+		"timestamp": req.Timestamp, "total": req.Total, "whatsapp": result.WhatsApp, "provider": provider,
 	})
 	if err != nil {
 		result.PersistError = err.Error()
@@ -234,7 +335,6 @@ func formatCaption(p publish.Product) string {
 		b.WriteString("\n")
 	}
 	if p.Price != "" {
-		b.WriteString("Precio: ")
 		b.WriteString(p.Price)
 		b.WriteString("\n")
 	}

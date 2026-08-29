@@ -163,6 +163,23 @@
         Tip: instala la app para recibir fotos desde WhatsApp con “Compartir”.
       </p>
     </div>
+
+    <div class="panel" id="waConnectPanel">
+      <h2>Conectar WhatsApp</h2>
+      <p class="muted" id="waConnectStatus">Comprobando…</p>
+      <div id="waPairBox" style="display:none">
+        <p class="muted">Sin escanear QR: escribe tu número y te damos un <strong>código de 8 caracteres</strong>. En el teléfono: WhatsApp → Dispositivos vinculados → Vincular con número.</p>
+        <label>Tu número (con código de país)</label>
+        <input id="pairPhone" placeholder="56912345678" inputmode="tel" autocomplete="tel" />
+        <div class="stack">
+          <button type="button" class="btn-wa" id="btnPairCode">Obtener código</button>
+        </div>
+        <p class="muted" id="pairResult" style="margin-top:0.65rem;font-size:1.15rem;font-weight:700;letter-spacing:0.12em;color:var(--wa)"></p>
+      </div>
+      <p class="muted" id="waCloudHint" style="display:none;margin-top:0.5rem">
+        Este servidor usa <strong>WhatsApp Cloud API</strong> (número de empresa). No hace falta vincular tu WhatsApp personal.
+      </p>
+    </div>
     <div class="panel">
       <h2>Última acción</h2>
       <p class="muted" id="lastResult">Pulsa + para crear una oferta.</p>
@@ -805,6 +822,79 @@
     });
   }
   checkOpenWA();
+
+  // --- Conectar WhatsApp (código de emparejamiento / Cloud) ---
+  function refreshWAConnectUI() {
+    fetch(API_BASE + '/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
+      var st = $('waConnectStatus');
+      var pairBox = $('waPairBox');
+      var cloudHint = $('waCloudHint');
+      if (!st) return;
+      var prov = info.whatsapp_provider || 'none';
+      if (prov === 'cloud' && info.cloud_enabled) {
+        st.innerHTML = '<span class="ok">WhatsApp empresa listo (Cloud API).</span>';
+        if (pairBox) pairBox.style.display = 'none';
+        if (cloudHint) cloudHint.style.display = 'block';
+        openwaReady = true;
+        return;
+      }
+      if (prov === 'openwa') {
+        if (info.openwa_connected) {
+          st.innerHTML = '<span class="ok">WhatsApp vinculado (OpenWA).</span>';
+          if (pairBox) pairBox.style.display = 'none';
+          openwaReady = true;
+        } else {
+          st.textContent = 'WhatsApp no vinculado. Usa el código (sin QR).';
+          if (pairBox) pairBox.style.display = 'block';
+          openwaReady = false;
+        }
+        if (cloudHint) cloudHint.style.display = 'none';
+        return;
+      }
+      st.innerHTML = '<span class="warn">Servidor sin WhatsApp automático.</span> Puedes publicar con compartir del teléfono.';
+      if (pairBox) pairBox.style.display = 'none';
+      if (cloudHint) cloudHint.style.display = 'none';
+      openwaReady = false;
+    }).catch(function () {
+      if ($('waConnectStatus')) $('waConnectStatus').textContent = 'No se pudo contactar la API.';
+    });
+  }
+  if ($('btnPairCode')) {
+    $('btnPairCode').addEventListener('click', function (e) {
+      e.preventDefault();
+      var phone = ($('pairPhone').value || '').replace(/\D/g, '');
+      if (phone.length < 8) return toast('Escribe el número con código de país');
+      $('pairResult').textContent = '…';
+      $('btnPairCode').disabled = true;
+      fetch(API_BASE + '/api/whatsapp/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function () {
+          return fetch(API_BASE + '/api/whatsapp/pairing-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber: phone })
+          });
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          $('btnPairCode').disabled = false;
+          if (data.pairingCode) {
+            $('pairResult').textContent = data.pairingCode;
+            toast('Escribe el código en WhatsApp');
+          } else {
+            $('pairResult').textContent = '';
+            toast((data.error || 'No se pudo obtener código') + '');
+          }
+          setTimeout(refreshWAConnectUI, 4000);
+        })
+        .catch(function (err) {
+          $('btnPairCode').disabled = false;
+          toast('Error de conexión');
+        });
+    });
+  }
+  refreshWAConnectUI();
+  setInterval(refreshWAConnectUI, 12000);
+
   function updatePwaStatus() {
     var el = $('pwaStatus');
     if (!el) return;
