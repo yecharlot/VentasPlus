@@ -12,6 +12,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   Browsers,
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
@@ -157,6 +158,47 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
       }
     }
   });
+
+  s.mediaByChat = s.mediaByChat || {};
+  const pushMedia = (jid, item) => {
+    if (!jid || !item) return;
+    const arr = s.mediaByChat[jid] || [];
+    // dedupe by id
+    if (item.id && arr.some((x) => x.id === item.id)) return;
+    arr.unshift(item);
+    s.mediaByChat[jid] = arr.slice(0, 50);
+  };
+
+  sock.ev.on('messages.upsert', async (ev) => {
+    const list = ev?.messages || [];
+    for (const m of list) {
+      try {
+        if (!m.message || m.key?.remoteJid === 'status@broadcast') continue;
+        const jid = m.key.remoteJid;
+        const img = m.message.imageMessage || m.message.viewOnceMessageV2?.message?.imageMessage;
+        if (!img) continue;
+        let dataUrl = null;
+        try {
+          const buf = await downloadMediaMessage(m, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
+          if (buf && buf.length && buf.length < 4_500_000) {
+            dataUrl = 'data:' + (img.mimetype || 'image/jpeg') + ';base64,' + Buffer.from(buf).toString('base64');
+          }
+        } catch (e) {
+          log.warn({ err: String(e) }, 'media download skip');
+        }
+        pushMedia(jid, {
+          id: m.key.id,
+          jid,
+          ts: Number(m.messageTimestamp || Date.now() / 1000),
+          caption: img.caption || m.message?.imageMessage?.caption || '',
+          mimetype: img.mimetype || 'image/jpeg',
+          dataUrl,
+          fromMe: !!m.key.fromMe,
+        });
+      } catch (_) {}
+    }
+  });
+
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -451,6 +493,44 @@ app.get('/api/sessions/:id/destinations', async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) });
   }
+});
+
+
+app.get('/api/sessions/:id/media', async (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s?.sock || s.status !== 'ready') {
+    return res.status(409).json({ ok: false, error: 'session not ready', status: s?.status });
+  }
+  let jid = String(req.query.jid || '');
+  if (!jid) return res.status(400).json({ ok: false, error: 'jid required' });
+  // normalizar
+  if (!jid.includes('@')) jid = jid.replace(/\D/g, '') + '@s.whatsapp.net';
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit || 30)));
+  const raw = (s.mediaByChat && s.mediaByChat[jid]) || [];
+  // también buscar variante @g.us / @s.whatsapp.net
+  const alt = jid.endsWith('@g.us') ? jid : jid.replace('@c.us', '@s.whatsapp.net');
+  const raw2 = (s.mediaByChat && s.mediaByChat[alt]) || [];
+  const merged = [...raw];
+  for (const x of raw2) {
+    if (!merged.some((m) => m.id === x.id)) merged.push(x);
+  }
+  merged.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  res.json({
+    ok: true,
+    jid,
+    items: merged.slice(0, limit).map((x) => ({
+      id: x.id,
+      jid: x.jid,
+      ts: x.ts,
+      caption: x.caption,
+      mimetype: x.mimetype,
+      dataUrl: x.dataUrl,
+      fromMe: x.fromMe,
+    })),
+    note: merged.length
+      ? 'Fotos recientes vistas por el puente desde la vinculación'
+      : 'Aún no hay fotos en caché. Abre el grupo en WhatsApp o espera a que lleguen imágenes nuevas; el puente las irá guardando.',
+  });
 });
 
 app.listen(PORT, () => log.info({ PORT }, 'wa-bridge listening'));

@@ -182,6 +182,41 @@
         Este servidor usa <strong>WhatsApp Cloud API</strong> (número de empresa). No hace falta vincular tu WhatsApp personal.
       </p>
     </div>
+
+    <div class="panel" id="inboxPanel" style="display:none">
+      <h2>Fotos de grupos</h2>
+      <p class="muted">Elige un grupo y toca una foto reciente para armar la oferta.</p>
+      <label>Grupo</label>
+      <select id="inboxGroup" style="width:100%;min-height:48px;background:#0d141c;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:0.65rem;font-size:16px">
+        <option value="">— Elige grupo —</option>
+      </select>
+      <div class="stack">
+        <button type="button" class="btn-dark" id="btnLoadMedia">Ver fotos recientes</button>
+      </div>
+      <p class="muted" id="inboxNote" style="margin-top:0.5rem"></p>
+      <div id="inboxGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.65rem"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Plantillas de texto</h2>
+      <select id="tplSelect" style="width:100%;min-height:48px;background:#0d141c;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:0.65rem;font-size:16px">
+        <option value="">— Plantilla —</option>
+      </select>
+      <p class="muted" style="margin-top:0.4rem">Al publicar se usa el texto de la oferta; la plantilla rellena nombre/precio/detalle si aplica.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Historial</h2>
+      <div class="stack">
+        <button type="button" class="btn-dark" id="btnHistory">Ver últimas publicaciones</button>
+      </div>
+      <div id="historyList" class="muted" style="margin-top:0.5rem;font-size:0.85rem"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Límites de seguridad</h2>
+      <p class="muted" id="limitsInfo">Para cuidar tu WhatsApp: pocos envíos por hora, pausa entre mensajes y máximo de destinos por publicación.</p>
+    </div>
     <div class="panel">
       <h2>Última acción</h2>
       <p class="muted" id="lastResult">Pulsa + para crear una oferta.</p>
@@ -253,9 +288,10 @@
         <label>Buscar</label>
         <input id="waDestFilter" placeholder="Escribe para filtrar…" autocomplete="off" />
         <label>Grupo o contacto</label>
-        <select id="waDestSelect" style="width:100%;min-height:48px;background:#0d141c;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:0.65rem;font-size:16px">
+        <select id="waDestSelect" multiple size="6" style="width:100%;min-height:140px;background:#0d141c;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:0.65rem;font-size:16px">
           <option value="">— Cargando… —</option>
         </select>
+        <p class="muted" style="margin-top:0.35rem;font-size:0.78rem">Puedes elegir varios (máx. según límites). Hay pausa entre envíos.</p>
         <p class="muted" style="margin-top:0.35rem;font-size:0.78rem">Si no aparece, usa el campo manual:</p>
         <input id="waDest" placeholder="Número manual (opcional)" autocomplete="off" />
         <button type="button" class="btn-dark" id="btnReloadDest" style="margin-top:0.5rem">Actualizar lista</button>
@@ -659,11 +695,14 @@
     var status = $('sendStatus');
 
     // OpenWA: envío real con imagen (si el servidor tiene sesión)
-    var destRaw = (($('waDestSelect') && $('waDestSelect').value) || ($('waDest') && $('waDest').value) || '').trim();
-    if (openwaReady && destRaw) {
-      var chatId = destRaw;
-      if (/^\d{8,15}$/.test(chatId)) chatId = chatId + '@c.us';
-      status.textContent = 'Enviando por OpenWA…';
+    var destList = selectedDestinations();
+    var destRaw = destList[0] || '';
+    if (openwaReady && destList.length) {
+      var chats = destList.map(function (d) {
+        if (/^\d{8,15}$/.test(d)) return d + '@c.us';
+        return d;
+      });
+      status.textContent = 'Enviando a ' + chats.length + ' destino(s) (con pausas de seguridad)…';
       try {
         var res = await fetch(API_BASE + '/api/publish', {
           method: 'POST',
@@ -678,20 +717,21 @@
               imageBase64: offerDataURL
             }],
             total: 1,
-            destinations: { facebook: [], whatsapp: [chatId] }
+            destinations: { facebook: [], whatsapp: chats }
           })
         });
         var data = await res.json();
         var ok = (data.whatsapp || []).some(function (x) { return x && x.ok; });
         if (ok) {
-          status.innerHTML = '<span class="ok">Oferta enviada por WhatsApp (OpenWA).</span>';
-          $('lastResult').textContent = 'Enviada por OpenWA — ' + ($('prodName').value.trim() || 'oferta');
+          status.innerHTML = '<span class="ok">Oferta enviada.</span> ' + (data.message || '');
+          $('lastResult').textContent = 'Enviada — ' + ($('prodName').value.trim() || 'oferta');
           toast('Enviado');
+          loadLimits();
           return;
         }
-        status.innerHTML = '<span class="warn">OpenWA no confirmó el envío.</span> Probamos compartir del teléfono…';
+        status.innerHTML = '<span class="warn">' + ((data && data.message) || 'No confirmado') + '</span> Probamos compartir…';
       } catch (err) {
-        status.innerHTML = '<span class="warn">Sin OpenWA ahora.</span> Usamos compartir del teléfono…';
+        status.innerHTML = '<span class="warn">Sin envío automático.</span> Usamos compartir del teléfono…';
       }
     }
 
@@ -893,6 +933,10 @@
         if (cloudHint) cloudHint.style.display = 'block';
         openwaReady = true;
         loadDestinations();
+        fillInboxGroups();
+        loadTemplates();
+        loadLimits();
+        if ($('inboxPanel')) $('inboxPanel').style.display = 'block';
         return;
       }
       if (prov === 'openwa') {
@@ -901,6 +945,9 @@
           if (pairBox) pairBox.style.display = 'none';
           openwaReady = true;
           loadDestinations();
+          fillInboxGroups();
+          loadTemplates();
+          loadLimits();
         } else {
           st.textContent = 'WhatsApp no vinculado. Usa el código (sin QR).';
           if (pairBox) pairBox.style.display = 'block';
@@ -971,6 +1018,8 @@
       _ft = setTimeout(loadDestinations, 250);
     });
   }
+  loadTemplates();
+  loadLimits();
   refreshWAConnectUI();
   setInterval(refreshWAConnectUI, 12000);
 

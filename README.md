@@ -34,3 +34,17 @@ Sin OpenWA la app sigue útil (compartir nativo). Con OpenWA: define `OPENWA_URL
 4. Completa precio/nombre → envía la card.
 
 **Límites:** funciona bien en **Android + Chrome** con la PWA instalada. En **iPhone/Safari** Apple casi no permite Share Target para PWAs; haría falta app nativa.
+
+## Funciones avanzadas (sesión WhatsApp vinculada)
+
+- **Bandeja de fotos de grupos:** elige grupo → fotos recientes en caché → un toque → oferta.
+- **Multi-destino:** varios grupos/contactos por publicación (tope configurable).
+- **Plantillas** de texto (`/api/templates`).
+- **Historial** de publicaciones (`/api/publications`).
+- **Límites anti-bloqueo** (`/api/whatsapp/limits`):
+  - `WA_MAX_DESTINATIONS` (default 5)
+  - `WA_MIN_DELAY_MS` (default 3500)
+  - `WA_MAX_SENDS_PER_HOUR` (default 25)
+  - `WA_MAX_SENDS_PER_DAY` (default 80)
+
+Las fotos de grupo se acumulan cuando el puente ve mensajes nuevos tras vincular (no es un historial completo de WhatsApp).

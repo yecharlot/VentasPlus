@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -267,6 +269,31 @@ func (c *Client) Destinations(sessionID string) (map[string]interface{}, error) 
 	}
 	if code >= 300 {
 		return out, fmt.Errorf("destinations HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
+
+
+func (c *Client) ChatMedia(sessionID, jid string, limit int) (map[string]interface{}, error) {
+	if sessionID == "" {
+		sessionID = c.SessionID
+	}
+	if sessionID == "" {
+		sessionID = "ventasplus"
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	q := url.Values{}
+	q.Set("jid", jid)
+	q.Set("limit", strconv.Itoa(limit))
+	path := "/api/sessions/" + sessionID + "/media?" + q.Encode()
+	code, out, raw, err := c.do(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("media HTTP %d: %s", code, string(raw))
 	}
 	return out, nil
 }
