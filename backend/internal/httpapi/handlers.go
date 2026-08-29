@@ -35,6 +35,7 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/whatsapp/pairing-code", h.waPairing)
 	mux.HandleFunc("/api/whatsapp/qr", h.waQR)
 	mux.HandleFunc("/api/whatsapp/groups", h.waGroups)
+	mux.HandleFunc("/api/whatsapp/destinations", h.waDestinations)
 	mux.HandleFunc("/", h.root)
 }
 
@@ -214,6 +215,23 @@ func (h *Handlers) waQR(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1200 * time.Millisecond)
 	}
 	out, err := h.WA.GetQR(sid)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+
+func (h *Handlers) waDestinations(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if !h.WA.Enabled() {
+		w.WriteHeader(503)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "WhatsApp no configurado"})
+		return
+	}
+	out, err := h.WA.Destinations("")
 	if err != nil {
 		w.WriteHeader(502)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out})

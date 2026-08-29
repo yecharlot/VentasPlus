@@ -124,6 +124,40 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
 
   sock.ev.on('creds.update', saveCreds);
 
+  s.contacts = s.contacts || {};
+  s.chats = s.chats || {};
+  s.groupsCache = s.groupsCache || [];
+
+  sock.ev.on('contacts.upsert', (list) => {
+    for (const c of list || []) {
+      if (c?.id) s.contacts[c.id] = { id: c.id, name: c.notify || c.name || c.verifiedName || c.id };
+    }
+  });
+  sock.ev.on('contacts.update', (list) => {
+    for (const c of list || []) {
+      if (c?.id) {
+        const prev = s.contacts[c.id] || { id: c.id };
+        s.contacts[c.id] = {
+          id: c.id,
+          name: c.notify || c.name || c.verifiedName || prev.name || c.id,
+        };
+      }
+    }
+  });
+  sock.ev.on('chats.upsert', (list) => {
+    for (const c of list || []) {
+      if (c?.id) s.chats[c.id] = { id: c.id, name: c.name || c.id, unread: c.unreadCount || 0 };
+    }
+  });
+  sock.ev.on('chats.update', (list) => {
+    for (const c of list || []) {
+      if (c?.id) {
+        const prev = s.chats[c.id] || { id: c.id };
+        s.chats[c.id] = { id: c.id, name: c.name || prev.name || c.id, unread: c.unreadCount ?? prev.unread };
+      }
+    }
+  });
+
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
@@ -136,6 +170,17 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
       s.pairingCode = null;
       s.lastQr = null;
       log.info({ id }, 'whatsapp ready');
+      try {
+        const groups = await sock.groupFetchAllParticipating();
+        s.groupsCache = Object.values(groups || {}).map((g) => ({
+          id: g.id,
+          name: g.subject || g.id,
+          type: 'group',
+        }));
+        log.info({ id, n: s.groupsCache.length }, 'groups cached');
+      } catch (e) {
+        log.warn({ err: String(e) }, 'group fetch failed');
+      }
     }
     if (connection === 'close') {
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
@@ -346,13 +391,65 @@ app.post('/api/sessions/:id/messages/send-image', async (req, res) => {
 
 app.get('/api/sessions/:id/groups', async (req, res) => {
   const s = sessions.get(req.params.id);
-  if (!s?.sock || s.status !== 'ready') return res.status(409).json({ error: 'session not ready' });
+  if (!s?.sock || s.status !== 'ready') return res.status(409).json({ error: 'session not ready', status: s?.status });
   try {
     const groups = await s.sock.groupFetchAllParticipating();
-    const list = Object.values(groups || {}).map((g) => ({ id: g.id, subject: g.subject }));
+    const list = Object.values(groups || {}).map((g) => ({ id: g.id, subject: g.subject, name: g.subject }));
+    s.groupsCache = list.map((g) => ({ id: g.id, name: g.subject || g.id, type: 'group' }));
     res.json({ ok: true, groups: list });
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+/** Grupos + contactos/chats para elegir destino sin escribir */
+app.get('/api/sessions/:id/destinations', async (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s?.sock || s.status !== 'ready') {
+    return res.status(409).json({ ok: false, error: 'session not ready', status: s?.status });
+  }
+  try {
+    // refrescar grupos
+    try {
+      const groups = await s.sock.groupFetchAllParticipating();
+      s.groupsCache = Object.values(groups || {}).map((g) => ({
+        id: g.id,
+        name: g.subject || g.id,
+        type: 'group',
+      }));
+    } catch (_) {}
+
+    const groupList = (s.groupsCache || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // contactos 1:1 (no grupos)
+    const contactList = Object.values(s.contacts || {})
+      .filter((c) => c.id && !String(c.id).endsWith('@g.us') && !String(c.id).includes('status@'))
+      .map((c) => ({
+        id: String(c.id).replace('@s.whatsapp.net', '@c.us'),
+        name: c.name || c.id,
+        type: 'contact',
+      }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // chats recientes que no estén ya en contactos
+    const seen = new Set(contactList.map((c) => c.id));
+    for (const ch of Object.values(s.chats || {})) {
+      if (!ch.id || String(ch.id).endsWith('@g.us')) continue;
+      const id = String(ch.id).replace('@s.whatsapp.net', '@c.us');
+      if (seen.has(id)) continue;
+      contactList.push({ id, name: ch.name || id, type: 'chat' });
+      seen.add(id);
+    }
+    contactList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    res.json({
+      ok: true,
+      groups: groupList,
+      contacts: contactList.slice(0, 300),
+      total: groupList.length + Math.min(contactList.length, 300),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
   }
 });
 

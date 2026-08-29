@@ -249,10 +249,16 @@
       </div>
 
       <div id="openwaBox" style="display:none;margin:0.5rem 0 0.75rem">
-        <p class="muted" id="openwaHint">WhatsApp conectado en el servidor (OpenWA). Puedes enviar la oferta con foto al chat o grupo.</p>
-        <label>Chat o grupo de WhatsApp</label>
-        <input id="waDest" placeholder="Ej. 56912345678 o id del grupo" autocomplete="off" />
-        <p class="muted" style="margin-top:0.35rem;font-size:0.78rem">Número con código de país, o ID de grupo (@g.us).</p>
+        <p class="muted" id="openwaHint">WhatsApp vinculado. Elige un grupo o contacto (no hace falta escribir el número).</p>
+        <label>Buscar</label>
+        <input id="waDestFilter" placeholder="Escribe para filtrar…" autocomplete="off" />
+        <label>Grupo o contacto</label>
+        <select id="waDestSelect" style="width:100%;min-height:48px;background:#0d141c;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:0.65rem;font-size:16px">
+          <option value="">— Cargando… —</option>
+        </select>
+        <p class="muted" style="margin-top:0.35rem;font-size:0.78rem">Si no aparece, usa el campo manual:</p>
+        <input id="waDest" placeholder="Número manual (opcional)" autocomplete="off" />
+        <button type="button" class="btn-dark" id="btnReloadDest" style="margin-top:0.5rem">Actualizar lista</button>
       </div>
       <div class="stack">
         <button type="button" class="btn-wa" id="btnSendWA">Publicar en WhatsApp</button>
@@ -653,7 +659,7 @@
     var status = $('sendStatus');
 
     // OpenWA: envío real con imagen (si el servidor tiene sesión)
-    var destRaw = ($('waDest') && $('waDest').value || '').trim();
+    var destRaw = (($('waDestSelect') && $('waDestSelect').value) || ($('waDest') && $('waDest').value) || '').trim();
     if (openwaReady && destRaw) {
       var chatId = destRaw;
       if (/^\d{8,15}$/.test(chatId)) chatId = chatId + '@c.us';
@@ -826,6 +832,54 @@
   checkOpenWA();
 
   // --- Conectar WhatsApp (código de emparejamiento / Cloud) ---
+
+  function loadDestinations() {
+    var sel = $('waDestSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Cargando grupos y contactos…</option>';
+    fetch(API_BASE + '/api/whatsapp/destinations')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          sel.innerHTML = '<option value="">No disponible (¿WhatsApp vinculado?)</option>';
+          return;
+        }
+        var filter = (($('waDestFilter') && $('waDestFilter').value) || '').toLowerCase();
+        var html = '<option value="">— Elige grupo o contacto —</option>';
+        var groups = data.groups || [];
+        var contacts = data.contacts || [];
+        if (groups.length) {
+          html += '<optgroup label="Grupos">';
+          groups.forEach(function (g) {
+            var label = g.name || g.id;
+            if (filter && label.toLowerCase().indexOf(filter) < 0) return;
+            html += '<option value="' + String(g.id).replace(/"/g, '') + '">' + label.replace(/</g, '') + '</option>';
+          });
+          html += '</optgroup>';
+        }
+        if (contacts.length) {
+          html += '<optgroup label="Contactos">';
+          contacts.forEach(function (c) {
+            var label = c.name || c.id;
+            if (filter && label.toLowerCase().indexOf(filter) < 0) return;
+            html += '<option value="' + String(c.id).replace(/"/g, '') + '">' + label.replace(/</g, '') + '</option>';
+          });
+          html += '</optgroup>';
+        }
+        sel.innerHTML = html;
+        if (!groups.length && !contacts.length) {
+          sel.innerHTML = '<option value="">Aún sin lista — usa el número manual</option>';
+        }
+      })
+      .catch(function () {
+        sel.innerHTML = '<option value="">Error al cargar</option>';
+      });
+  }
+  if ($('btnReloadDest')) $('btnReloadDest').addEventListener('click', function (e) { e.preventDefault(); loadDestinations(); });
+  if ($('waDestFilter')) $('waDestFilter').addEventListener('input', function () { loadDestinations(); });
+  // cargar cuando OpenWA listo
+  var _oldRefresh = typeof refreshWAConnectUI === 'function' ? refreshWAConnectUI : null;
+
   function refreshWAConnectUI() {
     fetch(API_BASE + '/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
       var st = $('waConnectStatus');
@@ -838,6 +892,7 @@
         if (pairBox) pairBox.style.display = 'none';
         if (cloudHint) cloudHint.style.display = 'block';
         openwaReady = true;
+        loadDestinations();
         return;
       }
       if (prov === 'openwa') {
@@ -845,6 +900,7 @@
           st.innerHTML = '<span class="ok">WhatsApp vinculado (OpenWA).</span>';
           if (pairBox) pairBox.style.display = 'none';
           openwaReady = true;
+          loadDestinations();
         } else {
           st.textContent = 'WhatsApp no vinculado. Usa el código (sin QR).';
           if (pairBox) pairBox.style.display = 'block';
@@ -905,6 +961,14 @@
           $('btnPairCode').disabled = false;
           toast('Error de conexión');
         });
+    });
+  }
+  if ($('btnReloadDest')) $('btnReloadDest').addEventListener('click', function (e) { e.preventDefault(); loadDestinations(); });
+  if ($('waDestFilter')) {
+    var _ft;
+    $('waDestFilter').addEventListener('input', function () {
+      clearTimeout(_ft);
+      _ft = setTimeout(loadDestinations, 250);
     });
   }
   refreshWAConnectUI();

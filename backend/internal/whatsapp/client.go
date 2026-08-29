@@ -253,3 +253,20 @@ func (c *Client) ResetSession(sessionID string) error {
 	}
 	return nil
 }
+
+func (c *Client) Destinations(sessionID string) (map[string]interface{}, error) {
+	if sessionID == "" {
+		sessionID = c.SessionID
+	}
+	if sessionID == "" {
+		sessionID = "ventasplus"
+	}
+	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/destinations", nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("destinations HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
