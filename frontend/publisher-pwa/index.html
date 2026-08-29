@@ -28,6 +28,20 @@
       background: radial-gradient(1200px 600px at 10% -10%, #1a2a22 0%, var(--bg) 55%);
       color: var(--text);
     }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    }
+    .hdr-left { min-width: 0; flex: 1; }
+    .btn-install-hdr {
+      flex-shrink: 0;
+      width: auto; min-height: 40px; padding: 0.45rem 0.85rem;
+      border-radius: 999px; font-size: 0.82rem; font-weight: 700;
+      background: linear-gradient(180deg, #2fe574, var(--wa)); color: #06381d;
+      border: 0; white-space: nowrap;
+    }
+    .btn-install-hdr.hidden-install { display: none !important; }
+
     header {
       padding: calc(0.9rem + var(--safe-t)) 1.1rem 0.9rem;
       background: rgba(10, 15, 20, 0.9);
@@ -126,8 +140,11 @@
 </head>
 <body>
   <header>
-    <h1>VentasPlus</h1>
-    <p>Crea una oferta y publícala en WhatsApp</p>
+    <div class="hdr-left">
+      <h1>VentasPlus</h1>
+      <p>Crea una oferta y publícala en WhatsApp</p>
+    </div>
+    <button type="button" class="btn-install-hdr" id="btnInstallHdr" title="Instalar app">Instalar</button>
   </header>
 
   <main>
@@ -139,7 +156,7 @@
         <li><strong>Publicar</strong> la oferta en WhatsApp</li>
       </ol>
       <div class="stack">
-        <button type="button" class="btn-wa" id="btnInstall" style="display:none">Instalar en este teléfono</button>
+        <button type="button" class="btn-wa" id="btnInstall" style="display:none">Instalar en este teléfono</button><!-- mirror of header -->
       </div>
       <p class="muted" id="pwaStatus" style="margin-top:0.65rem;font-size:0.8rem"></p>
       <p class="muted" style="margin-top:0.45rem;font-size:0.8rem">
@@ -210,6 +227,13 @@
       <p class="muted">Así se verá tu oferta. Puedes publicarla en WhatsApp.</p>
       <div class="offer-frame">
         <img id="offerPreview" alt="Vista de la oferta" />
+      </div>
+
+      <div id="openwaBox" style="display:none;margin:0.5rem 0 0.75rem">
+        <p class="muted" id="openwaHint">WhatsApp conectado en el servidor (OpenWA). Puedes enviar la oferta con foto al chat o grupo.</p>
+        <label>Chat o grupo de WhatsApp</label>
+        <input id="waDest" placeholder="Ej. 56912345678 o id del grupo" autocomplete="off" />
+        <p class="muted" style="margin-top:0.35rem;font-size:0.78rem">Número con código de país, o ID de grupo (@g.us).</p>
       </div>
       <div class="stack">
         <button type="button" class="btn-wa" id="btnSendWA">Publicar en WhatsApp</button>
@@ -609,6 +633,43 @@
     var file = await dataURLToFile(offerDataURL, 'oferta-ventasplus.jpg');
     var status = $('sendStatus');
 
+    // OpenWA: envío real con imagen (si el servidor tiene sesión)
+    var destRaw = ($('waDest') && $('waDest').value || '').trim();
+    if (openwaReady && destRaw) {
+      var chatId = destRaw;
+      if (/^\d{8,15}$/.test(chatId)) chatId = chatId + '@c.us';
+      status.textContent = 'Enviando por OpenWA…';
+      try {
+        var res = await fetch(API_BASE + '/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: 'agent-default',
+            timestamp: new Date().toISOString(),
+            products: [{
+              name: $('prodName').value.trim(),
+              price: $('prodPrice').value.trim(),
+              description: $('prodDesc').value.trim(),
+              imageBase64: offerDataURL
+            }],
+            total: 1,
+            destinations: { facebook: [], whatsapp: [chatId] }
+          })
+        });
+        var data = await res.json();
+        var ok = (data.whatsapp || []).some(function (x) { return x && x.ok; });
+        if (ok) {
+          status.innerHTML = '<span class="ok">Oferta enviada por WhatsApp (OpenWA).</span>';
+          $('lastResult').textContent = 'Enviada por OpenWA — ' + ($('prodName').value.trim() || 'oferta');
+          toast('Enviado');
+          return;
+        }
+        status.innerHTML = '<span class="warn">OpenWA no confirmó el envío.</span> Probamos compartir del teléfono…';
+      } catch (err) {
+        status.innerHTML = '<span class="warn">Sin OpenWA ahora.</span> Usamos compartir del teléfono…';
+      }
+    }
+
     if (navigator.share) {
       try {
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -680,26 +741,70 @@
 
   // PWA install + share target
   var deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();
-    deferredPrompt = e;
-    var b = $('btnInstall');
-    if (b) b.style.display = 'flex';
-  });
-  if ($('btnInstall')) {
-    $('btnInstall').addEventListener('click', function () {
-      if (!deferredPrompt) {
-        toast('En Chrome: menú ⋮ → Instalar app');
-        return;
-      }
+  var API_BASE = (localStorage.getItem('vp_api_base') || 'https://ventasplus-api.onrender.com').replace(/\/$/, '');
+  var openwaReady = false;
+
+  function isAndroid() {
+    return /Android/i.test(navigator.userAgent);
+  }
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function setInstallVisible(show) {
+    var hdr = $('btnInstallHdr');
+    var panel = $('btnInstall');
+    // En Android, mostrar hasta instalar; en otros, solo si hay prompt
+    var visible = show && !isStandalone();
+    if (hdr) {
+      if (visible && (isAndroid() || deferredPrompt)) hdr.classList.remove('hidden-install');
+      else if (!visible) hdr.classList.add('hidden-install');
+      else hdr.classList.remove('hidden-install');
+    }
+    if (panel) panel.style.display = visible && deferredPrompt ? 'flex' : 'none';
+  }
+  function promptInstall() {
+    if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(function () {
         deferredPrompt = null;
-        $('btnInstall').style.display = 'none';
+        setInstallVisible(false);
         updatePwaStatus();
+        toast('App instalada');
       });
+      return;
+    }
+    if (isAndroid()) {
+      toast('Menú ⋮ de Chrome → Instalar app');
+    } else {
+      toast('Instalación disponible en Chrome Android');
+    }
+  }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    setInstallVisible(true);
+  });
+  if ($('btnInstallHdr')) $('btnInstallHdr').addEventListener('click', function (e) { e.preventDefault(); promptInstall(); });
+  if ($('btnInstall')) $('btnInstall').addEventListener('click', function (e) { e.preventDefault(); promptInstall(); });
+  // Android: mostrar botón aunque aún no haya prompt (guía)
+  if (isAndroid() && !isStandalone()) setInstallVisible(true);
+  else if ($('btnInstallHdr') && !isAndroid()) $('btnInstallHdr').classList.add('hidden-install');
+
+  function checkOpenWA() {
+    fetch(API_BASE + '/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
+      openwaReady = !!(info && info.openwa_session);
+      var box = $('openwaBox');
+      if (box) box.style.display = openwaReady ? 'block' : 'none';
+      if (openwaReady && $('openwaHint')) {
+        $('openwaHint').textContent = 'WhatsApp del servidor listo (OpenWA). Escribe el número o grupo y publica con foto.';
+      }
+    }).catch(function () {
+      openwaReady = false;
+      var box = $('openwaBox');
+      if (box) box.style.display = 'none';
     });
   }
+  checkOpenWA();
   function updatePwaStatus() {
     var el = $('pwaStatus');
     if (!el) return;
