@@ -124,6 +124,10 @@
         <li><strong>Desde WhatsApp:</strong> en una foto → Compartir → <strong>VentasPlus</strong> (app instalada)</li>
         <li><strong>Desde aquí:</strong> botón <strong>+</strong> → foto → datos → enviar card</li>
       </ol>
+      <div class="stack" style="margin-top:0.75rem">
+        <button type="button" class="btn-wa" id="btnInstall" style="display:none">📲 Instalar VentasPlus en este teléfono</button>
+      </div>
+      <p class="muted" id="pwaStatus" style="margin:0.5rem 0 0;font-size:0.8rem"></p>
       <p class="muted" id="installHint" style="margin:0.75rem 0 0">En Android (Chrome): menú ⋮ → <strong>Instalar app</strong> / Añadir a pantalla de inicio. Sin instalar, WhatsApp no mostrará VentasPlus al compartir.</p>
     </div>
     <div class="card">
@@ -636,9 +640,53 @@
   });
 
   // --- PWA + Share Target (WhatsApp → VentasPlus) ---
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(function () {});
+
+  // Installability + diagnóstico Share Target
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    var b = document.getElementById('btnInstall');
+    if (b) b.style.display = 'flex';
+  });
+  var btnInst = document.getElementById('btnInstall');
+  if (btnInst) {
+    btnInst.addEventListener('click', function () {
+      if (!deferredPrompt) {
+        toast('En Chrome: menú ⋮ → Instalar app / Añadir a pantalla de inicio');
+        return;
+      }
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function () {
+        deferredPrompt = null;
+        btnInst.style.display = 'none';
+        updatePwaStatus();
+        toast('Instalada. Cierra WhatsApp y vuelve a probar Compartir');
+      });
+    });
   }
+  function updatePwaStatus() {
+    var el = document.getElementById('pwaStatus');
+    if (!el) return;
+    var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    var sw = navigator.serviceWorker && navigator.serviceWorker.controller ? 'sí' : 'no';
+    el.innerHTML = standalone
+      ? '<span class="status-ok">App instalada (modo standalone).</span> Service Worker: ' + sw + '. Ahora en WhatsApp → Compartir foto debería listar <strong>VentasPlus</strong>. Si no, fuerza cierre de WhatsApp y reintenta.'
+      : '<span class="status-warn">Aún NO está instalada como app.</span> Sin instalar, Android <strong>no</strong> muestra VentasPlus al compartir. Service Worker: ' + sw + '.';
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(function () {
+      return navigator.serviceWorker.ready;
+    }).then(function () { updatePwaStatus(); }).catch(function () { updatePwaStatus(); });
+  } else {
+    updatePwaStatus();
+  }
+  window.addEventListener('appinstalled', function () {
+    updatePwaStatus();
+    toast('VentasPlus instalada');
+  });
+  updatePwaStatus();
+
 
   function idbGet(key) {
     return new Promise(function (resolve, reject) {

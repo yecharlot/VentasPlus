@@ -1,16 +1,18 @@
-/* VentasPlus service worker — Share Target (WhatsApp → VentasPlus) */
-const CACHE = 'ventasplus-v3';
+/* VentasPlus SW v5 — Share Target */
+const CACHE = 'ventasplus-v5';
 const ASSETS = [
-  './',
-  './index.html',
-  './share-target.html',
-  './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png',
+  '/',
+  '/index.html',
+  '/share-target.html',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -24,22 +26,28 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Share Target POST → guardar imagen y redirigir a la app
-  if (event.request.method === 'POST' && url.pathname.endsWith('/share-target.html')) {
+  if (
+    event.request.method === 'POST' &&
+    (url.pathname === '/share-target.html' || url.pathname.endsWith('/share-target.html'))
+  ) {
     event.respondWith(handleShareTarget(event.request));
     return;
   }
 
-  // red primero para HTML, cache para estáticos
   if (event.request.method !== 'GET') return;
+
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(event.request, copy)).catch(() => {});
+        if (res.ok && url.origin === self.location.origin) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(event.request, copy)).catch(() => {});
+        }
         return res;
       })
-      .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
+      .catch(() =>
+        caches.match(event.request).then((r) => r || caches.match('/index.html'))
+      )
   );
 });
 
@@ -49,14 +57,24 @@ async function handleShareTarget(request) {
     const title = form.get('title') || '';
     const text = form.get('text') || '';
     const sharedUrl = form.get('url') || '';
-    const media = form.get('media') || form.get('file') || form.get('image');
-
+    // distintos nombres según el emisor
+    let media =
+      form.get('media') ||
+      form.get('file') ||
+      form.get('image') ||
+      form.get('files');
+    if (!media) {
+      for (const [k, v] of form.entries()) {
+        if (v && typeof v === 'object' && v.size && String(v.type || '').startsWith('image/')) {
+          media = v;
+          break;
+        }
+      }
+    }
     let dataUrl = '';
     if (media && typeof media === 'object' && media.size) {
       dataUrl = await blobToDataURL(media);
     }
-
-    // Guardar en IDB para que index.html lo recoja
     await idbSet('pendingShare', {
       title: String(title || ''),
       text: String(text || ''),
@@ -65,11 +83,9 @@ async function handleShareTarget(request) {
       ts: Date.now(),
     });
   } catch (e) {
-    // igual redirigimos
     console.error('share-target', e);
   }
-
-  return Response.redirect('./index.html?shared=1', 303);
+  return Response.redirect('/index.html?shared=1', 303);
 }
 
 function blobToDataURL(blob) {
