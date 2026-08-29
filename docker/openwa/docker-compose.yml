@@ -1,0 +1,20 @@
+# OpenWA local — https://github.com/rmyndharis/OpenWA
+services:
+  openwa:
+    image: node:22-bookworm
+    working_dir: /app
+    ports:
+      - "2785:2785"
+    environment:
+      PORT: "2785"
+      DATABASE_TYPE: sqlite
+      API_MASTER_KEY: ${API_MASTER_KEY:-dev-master-key-change-me}
+    volumes:
+      - openwa_data:/app/data
+    command: >
+      bash -c "git clone --depth 1 https://github.com/rmyndharis/OpenWA.git /tmp/owa &&
+      cp -a /tmp/owa/. /app/ && npm ci &&
+      (test -f .env.minimal && cp .env.minimal .env || true) &&
+      npm start"
+volumes:
+  openwa_data:

@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: ventasplus-api
+    runtime: go
+    plan: free
+    rootDir: backend
+    buildCommand: go build -o ventasplus ./cmd/ventasplus
+    startCommand: ./ventasplus
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: CLOUDFLARE_WORKERS_URL
+        sync: false
+      - key: OPENWA_URL
+        sync: false
+      - key: OPENWA_API_KEY
+        sync: false
+      - key: OPENWA_SESSION_ID
+        sync: false
+      - key: FACEBOOK_ACCESS_TOKEN
+        sync: false
+
+  - type: web
+    name: ventasplus
+    runtime: static
+    plan: free
+    staticPublishPath: frontend/publisher-pwa
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # OpenWA: desplegar desde repo rmyndharis/OpenWA o imagen docker/openwa
+  # - name: ventasplus-openwa

@@ -1,0 +1,11 @@
+name = "ventasplus-workers"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "VentasPlusStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VentasPlusStore"]

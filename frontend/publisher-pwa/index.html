@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1877F2" />
+  <meta name="description" content="VentasPlus — captura y publica en Facebook y WhatsApp" />
+  <title>VentasPlus</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --line: #2a3a4f;
+      --fb: #1877F2;
+      --wa: #25D366;
+      --text: #e8eef8;
+      --muted: #8b9bb4;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; background: rgba(15,20,25,.92); backdrop-filter: blur(8px); z-index: 10;
+    }
+    header h1 { font-size: 1.1rem; margin: 0; color: #7dd3fc; }
+    header span { font-size: .75rem; color: var(--muted); }
+    main { max-width: 520px; margin: 0 auto; padding: 1rem 1rem 6rem; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 1rem; margin-bottom: 1rem;
+    }
+    .card h2 { margin: 0 0 .75rem; font-size: .95rem; color: #a5f3fc; }
+    label { display: block; font-size: .75rem; color: var(--muted); margin: .5rem 0 .25rem; }
+    input, textarea, select {
+      width: 100%; background: #0d1520; border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: .65rem .75rem; font-size: 1rem;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .row > * { flex: 1; min-width: 120px; }
+    button, .btn {
+      border: 0; border-radius: 10px; padding: .7rem 1rem; font-weight: 600; cursor: pointer;
+      font-size: .9rem;
+    }
+    .btn-primary { background: var(--fb); color: #fff; }
+    .btn-wa { background: var(--wa); color: #052e16; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .fab {
+      position: fixed; right: 1.25rem; bottom: 1.25rem; width: 56px; height: 56px;
+      border-radius: 50%; background: var(--fb); color: #fff; font-size: 1.75rem;
+      box-shadow: 0 8px 24px rgba(24,119,242,.45); z-index: 50;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 100;
+      display: none; flex-direction: column; padding: 1rem;
+    }
+    .overlay.open { display: flex; }
+    .overlay-panel {
+      background: var(--card); border-radius: 16px; border: 1px solid var(--line);
+      max-width: 640px; width: 100%; margin: auto; max-height: 92vh; overflow: auto;
+      padding: 1rem;
+    }
+    .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; min-height: 200px; }
+    .stage video, .stage canvas, .stage img { width: 100%; display: block; max-height: 50vh; object-fit: contain; }
+    #cropCanvas { cursor: crosshair; touch-action: none; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; }
+    .preview-post {
+      background: #fff; color: #050505; border-radius: 12px; overflow: hidden;
+    }
+    .preview-post .ph { padding: .75rem; display: flex; gap: .6rem; align-items: center; }
+    .preview-post .av { width: 40px; height: 40px; border-radius: 50%; background: var(--fb); }
+    .preview-post .body { padding: 0 .75rem .75rem; font-size: .95rem; white-space: pre-wrap; }
+    .preview-post img { width: 100%; display: block; }
+    .toast {
+      position: fixed; left: 50%; bottom: 5.5rem; transform: translateX(-50%);
+      background: #122; border: 1px solid var(--line); padding: .6rem 1rem; border-radius: 999px;
+      font-size: .85rem; z-index: 200; display: none; max-width: 90%;
+    }
+    .toast.show { display: block; }
+    .dest-list { font-size: .85rem; color: var(--muted); }
+    .chip { display: inline-block; background: #243044; padding: .2rem .5rem; border-radius: 6px; margin: .15rem; font-size: .75rem; }
+    .status-ok { color: #4ade80; }
+    .status-err { color: #f87171; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>VentasPlus</h1>
+      <span>Captura → edita → publica</span>
+    </div>
+    <button class="btn-ghost" type="button" id="btnSettings">API</button>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Última publicación</h2>
+      <div id="lastResult" class="dest-list">Aún no has publicado en esta sesión.</div>
+    </div>
+    <div class="card" id="historyCard" style="display:none">
+      <h2>Historial (Cloudflare)</h2>
+      <div id="historyList" class="dest-list"></div>
+    </div>
+  </main>
+
+  <button class="fab" type="button" id="fab" title="Nueva captura">+</button>
+  <div class="toast" id="toast"></div>
+
+  <!-- Overlay captura / editor -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <strong id="stepTitle">1 · Captura</strong>
+        <button class="btn-ghost" type="button" id="btnClose">Cerrar</button>
+      </div>
+
+      <div id="stepCapture">
+        <p class="dest-list">Usa la API real del navegador <code>getDisplayMedia</code>. Elige ventana o pestaña.</p>
+        <div class="stage" id="videoStage">
+          <video id="liveVideo" autoplay playsinline muted></video>
+        </div>
+        <div class="toolbar">
+          <button class="btn-primary" type="button" id="btnStartCapture">Compartir pantalla</button>
+          <button class="btn-primary" type="button" id="btnSnap" disabled>Tomar foto</button>
+        </div>
+      </div>
+
+      <div id="stepEdit" style="display:none">
+        <p class="dest-list">Arrastra para recortar. Añade texto y aplica.</p>
+        <div class="stage">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+        <div class="toolbar">
+          <input id="overlayText" placeholder="Texto sobre imagen" style="flex:2;min-width:140px" />
+          <button class="btn-ghost" type="button" id="btnApplyText">Texto</button>
+          <button class="btn-ghost" type="button" id="btnResetCrop">Limpiar selección</button>
+          <button class="btn-primary" type="button" id="btnConfirmImage">Usar imagen</button>
+        </div>
+      </div>
+
+      <div id="stepPublish" style="display:none">
+        <div class="preview-post" id="previewCard">
+          <div class="ph">
+            <div class="av"></div>
+            <div>
+              <strong>VentasPlus</strong><br />
+              <span style="font-size:.75rem;color:#65676b">Vista previa</span>
+            </div>
+          </div>
+          <div class="body" id="previewBody"></div>
+          <img id="previewImg" alt="producto" />
+        </div>
+        <label>Nombre del producto</label>
+        <input id="prodName" placeholder="Ej. Zapatillas Nike Air" />
+        <div class="row">
+          <div>
+            <label>Precio</label>
+            <input id="prodPrice" placeholder="$49.990" />
+          </div>
+          <div>
+            <label>Agent ID</label>
+            <input id="agentId" value="agent-default" />
+          </div>
+        </div>
+        <label>Descripción</label>
+        <textarea id="prodDesc" placeholder="Detalles, tallas, entrega…"></textarea>
+        <label>Destinos Facebook (IDs de página/grupo, uno por línea)</label>
+        <textarea id="fbDest" placeholder="1234567890"></textarea>
+        <label>Destinos WhatsApp (chatId, uno por línea — ej. 56912345678@c.us o id@g.us)</label>
+        <textarea id="waDest" placeholder="56912345678@c.us"></textarea>
+        <div class="toolbar">
+          <button class="btn-primary" type="button" id="btnPublish">Publicar ahora</button>
+          <button class="btn-ghost" type="button" id="btnBackEdit">Volver</button>
+        </div>
+        <p class="dest-list" id="publishStatus"></p>
+      </div>
+
+      <div id="stepSettings" style="display:none">
+        <label>URL API backend</label>
+        <input id="apiBase" placeholder="http://localhost:8080" />
+        <label>Worker Cloudflare (opcional, historial)</label>
+        <input id="cfBase" placeholder="https://ventasplus-workers….workers.dev" />
+        <div class="toolbar">
+          <button class="btn-primary" type="button" id="btnSaveSettings">Guardar</button>
+          <button class="btn-ghost" type="button" id="btnLoadHistory">Cargar historial</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const LS_API = 'vp_api_base';
+  const LS_CF = 'vp_cf_base';
+  const LS_AGENT = 'vp_agent';
+
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg) => {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3200);
+  };
+
+  let stream = null;
+  let sourceImg = null;
+  let cropRect = null;
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let finalDataURL = null;
+
+  function apiBase() {
+    return (localStorage.getItem(LS_API) || 'http://localhost:8080').replace(/\/$/, '');
+  }
+  function cfBase() {
+    return (localStorage.getItem(LS_CF) || '').replace(/\/$/, '');
+  }
+
+  function openOverlay(step) {
+    $('overlay').classList.add('open');
+    showStep(step || 'capture');
+  }
+  function closeOverlay() {
+    $('overlay').classList.remove('open');
+    stopStream();
+  }
+  function showStep(name) {
+    $('stepCapture').style.display = name === 'capture' ? 'block' : 'none';
+    $('stepEdit').style.display = name === 'edit' ? 'block' : 'none';
+    $('stepPublish').style.display = name === 'publish' ? 'block' : 'none';
+    $('stepSettings').style.display = name === 'settings' ? 'block' : 'none';
+    const titles = { capture: '1 · Captura', edit: '2 · Editar', publish: '3 · Publicar', settings: 'Configuración' };
+    $('stepTitle').textContent = titles[name] || '';
+  }
+
+  function stopStream() {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+    const v = $('liveVideo');
+    v.srcObject = null;
+  }
+
+  $('fab').onclick = () => openOverlay('capture');
+  $('btnClose').onclick = closeOverlay;
+  $('btnSettings').onclick = () => {
+    $('apiBase').value = apiBase();
+    $('cfBase').value = cfBase();
+    $('agentId').value = localStorage.getItem(LS_AGENT) || 'agent-default';
+    openOverlay('settings');
+  };
+  $('btnSaveSettings').onclick = () => {
+    localStorage.setItem(LS_API, $('apiBase').value.trim());
+    localStorage.setItem(LS_CF, $('cfBase').value.trim());
+    localStorage.setItem(LS_AGENT, $('agentId').value.trim() || 'agent-default');
+    toast('Configuración guardada');
+    closeOverlay();
+  };
+
+  $('btnStartCapture').onclick = async () => {
+    try {
+      stopStream();
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 15 },
+        audio: false,
+      });
+      const v = $('liveVideo');
+      v.srcObject = stream;
+      await v.play();
+      $('btnSnap').disabled = false;
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        $('btnSnap').disabled = true;
+      });
+      toast('Pantalla compartida — toma la foto');
+    } catch (e) {
+      toast('No se pudo capturar: ' + (e.message || e));
+    }
+  };
+
+  $('btnSnap').onclick = () => {
+    const v = $('liveVideo');
+    if (!v.videoWidth) {
+      toast('Espera a que el video cargue');
+      return;
+    }
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    stopStream();
+    sourceImg = new Image();
+    sourceImg.onload = () => {
+      setupCanvas();
+      showStep('edit');
+    };
+    sourceImg.src = c.toDataURL('image/jpeg', 0.92);
+  };
+
+  function setupCanvas() {
+    const canvas = $('cropCanvas');
+    const maxW = Math.min(600, window.innerWidth - 48);
+    const scale = Math.min(1, maxW / sourceImg.width);
+    canvas.width = Math.round(sourceImg.width * scale);
+    canvas.height = Math.round(sourceImg.height * scale);
+    cropRect = null;
+    redraw();
+  }
+
+  function redraw() {
+    const canvas = $('cropCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
+    if (cropRect) {
+      ctx.fillStyle = 'rgba(0,0,0,.45)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const { x, y, w, h } = cropRect;
+      ctx.clearRect(x, y, w, h);
+      ctx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#1877F2';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+    }
+  }
+
+  const canvas = () => $('cropCanvas');
+  function pos(e) {
+    const r = canvas().getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {
+      x: ((t.clientX - r.left) / r.width) * canvas().width,
+      y: ((t.clientY - r.top) / r.height) * canvas().height,
+    };
+  }
+  function onDown(e) {
+    e.preventDefault();
+    dragging = true;
+    const p = pos(e);
+    startX = p.x; startY = p.y;
+    cropRect = { x: startX, y: startY, w: 0, h: 0 };
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const p = pos(e);
+    cropRect = {
+      x: Math.min(startX, p.x),
+      y: Math.min(startY, p.y),
+      w: Math.abs(p.x - startX),
+      h: Math.abs(p.y - startY),
+    };
+    redraw();
+  }
+  function onUp() { dragging = false; }
+
+  $('cropCanvas').addEventListener('mousedown', onDown);
+  $('cropCanvas').addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  $('cropCanvas').addEventListener('touchstart', onDown, { passive: false });
+  $('cropCanvas').addEventListener('touchmove', onMove, { passive: false });
+  $('cropCanvas').addEventListener('touchend', onUp);
+
+  $('btnResetCrop').onclick = () => { cropRect = null; redraw(); };
+  $('btnApplyText').onclick = () => {
+    const text = $('overlayText').value.trim();
+    if (!text) return;
+    const c = canvas();
+    const ctx = c.getContext('2d');
+    const fontSize = Math.max(16, Math.round(c.width / 18));
+    ctx.font = 'bold ' + fontSize + 'px system-ui';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    const x = 16;
+    const y = c.height - 20;
+    ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
+    // bake into source
+    sourceImg = new Image();
+    sourceImg.onload = () => { cropRect = null; setupCanvas(); };
+    sourceImg.src = c.toDataURL('image/jpeg', 0.92);
+    toast('Texto aplicado');
+  };
+
+  $('btnConfirmImage').onclick = () => {
+    const c = canvas();
+    let out = c;
+    if (cropRect && cropRect.w > 8 && cropRect.h > 8) {
+      const t = document.createElement('canvas');
+      t.width = Math.max(1, Math.round(cropRect.w));
+      t.height = Math.max(1, Math.round(cropRect.h));
+      t.getContext('2d').drawImage(
+        c,
+        cropRect.x, cropRect.y, cropRect.w, cropRect.h,
+        0, 0, t.width, t.height
+      );
+      out = t;
+    }
+    finalDataURL = out.toDataURL('image/jpeg', 0.9);
+    $('previewImg').src = finalDataURL;
+    updatePreview();
+    showStep('publish');
+  };
+
+  $('btnBackEdit').onclick = () => showStep('edit');
+
+  function updatePreview() {
+    const name = $('prodName').value.trim();
+    const price = $('prodPrice').value.trim();
+    const desc = $('prodDesc').value.trim();
+    let body = '';
+    if (name) body += name + '\n';
+    if (price) body += 'Precio: ' + price + '\n';
+    if (desc) body += desc;
+    $('previewBody').textContent = body || 'Completa nombre, precio y descripción';
+  }
+  ['prodName', 'prodPrice', 'prodDesc'].forEach((id) => {
+    $(id).addEventListener('input', updatePreview);
+  });
+
+  function lines(id) {
+    return $(id).value.split('\n').map((s) => s.trim()).filter(Boolean);
+  }
+
+  $('btnPublish').onclick = async () => {
+    const status = $('publishStatus');
+    status.textContent = 'Publicando…';
+    status.className = 'dest-list';
+    const payload = {
+      agentId: $('agentId').value.trim() || localStorage.getItem(LS_AGENT) || 'agent-default',
+      timestamp: new Date().toISOString(),
+      products: [{
+        name: $('prodName').value.trim(),
+        price: $('prodPrice').value.trim(),
+        description: $('prodDesc').value.trim(),
+        imageBase64: finalDataURL || '',
+      }],
+      total: 1,
+      destinations: {
+        facebook: lines('fbDest'),
+        whatsapp: lines('waDest'),
+      },
+    };
+    try {
+      const res = await fetch(apiBase() + '/api/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Agent-Id': payload.agentId,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      const okFb = (data.facebook || []).filter((x) => x && x.ok).length;
+      const okWa = (data.whatsapp || []).filter((x) => x && x.ok).length;
+      const msg = 'OK · FB ' + okFb + '/' + (payload.destinations.facebook.length || 0) +
+        ' · WA ' + okWa + '/' + (payload.destinations.whatsapp.length || 0) +
+        (data.publicationId ? ' · id ' + data.publicationId.slice(0, 8) : '') +
+        (data.persistError ? ' · persist: ' + data.persistError : '');
+      status.textContent = msg;
+      status.className = 'dest-list status-ok';
+      $('lastResult').textContent = msg + ' — ' + (payload.products[0].name || 'sin nombre');
+      toast('Publicación enviada');
+    } catch (e) {
+      status.textContent = 'Error: ' + (e.message || e);
+      status.className = 'dest-list status-err';
+      toast('Fallo al publicar');
+    }
+  };
+
+  $('btnLoadHistory').onclick = async () => {
+    const base = cfBase();
+    if (!base) { toast('Configura Worker CF'); return; }
+    const agent = localStorage.getItem(LS_AGENT) || 'agent-default';
+    try {
+      const res = await fetch(base + '/api/publications/agent/' + encodeURIComponent(agent));
+      const data = await res.json();
+      const list = data.publications || [];
+      $('historyCard').style.display = 'block';
+      $('historyList').innerHTML = list.length
+        ? list.slice(0, 10).map((p) => '<div class="chip">' + (p.id || '').slice(0, 8) + ' · ' + (p.created_at || '') + '</div>').join('')
+        : 'Sin publicaciones';
+      toast('Historial cargado');
+    } catch (e) {
+      toast('Historial: ' + e.message);
+    }
+  };
+
+  // init agent field
+  $('agentId').value = localStorage.getItem(LS_AGENT) || 'agent-default';
+})();
+</script>
+</body>
+</html>
