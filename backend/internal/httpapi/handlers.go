@@ -182,7 +182,8 @@ func (h *Handlers) waPairing(w http.ResponseWriter, r *http.Request) {
 		// pequeño respiro para qr_ready
 		time.Sleep(1500 * time.Millisecond)
 	}
-	out, err := h.WA.RequestPairingCode(sid, req.PhoneNumber)
+	h.WA.SessionID = sid
+out, err := h.WA.RequestPairingCode(sid, req.PhoneNumber)
 	if err != nil {
 		w.WriteHeader(502)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out, "sessionId": sid})

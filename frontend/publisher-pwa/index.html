@@ -884,7 +884,20 @@
             $('pairResult').textContent = '';
             toast((data.error || 'No se pudo obtener código') + '');
           }
-          setTimeout(refreshWAConnectUI, 4000);
+          // Auto-comprobar hasta vincular
+          var tries = 0;
+          var timer = setInterval(function () {
+            tries++;
+            refreshWAConnectUI();
+            fetch(API_BASE + '/api/whatsapp/status').then(function (r) { return r.json(); }).then(function (st) {
+              if (st.connected) {
+                clearInterval(timer);
+                toast('WhatsApp conectado');
+                openwaReady = true;
+              }
+            }).catch(function () {});
+            if (tries > 40) clearInterval(timer);
+          }, 3000);
         })
         .catch(function (err) {
           $('btnPairCode').disabled = false;
