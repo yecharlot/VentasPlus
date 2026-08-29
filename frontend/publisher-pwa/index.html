@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#25D366" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>VentasPlus</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <style>
     :root {
       --bg: #0b141a; --card: #111b21; --line: #2a3942;
@@ -116,12 +119,12 @@
 
   <main>
     <div class="hero">
-      <strong>En 3 pasos</strong>
+      <strong>Dos caminos</strong>
       <ol>
-        <li><strong>Foto</strong> — cámara o galería</li>
-        <li><strong>Datos</strong> — nombre, precio, detalle</li>
-        <li><strong>WhatsApp</strong> — se envía la <strong>card completa</strong> (imagen con todo)</li>
+        <li><strong>Desde WhatsApp:</strong> en una foto → Compartir → <strong>VentasPlus</strong> (app instalada)</li>
+        <li><strong>Desde aquí:</strong> botón <strong>+</strong> → foto → datos → enviar card</li>
       </ol>
+      <p class="muted" id="installHint" style="margin:0.75rem 0 0">En Android (Chrome): menú ⋮ → <strong>Instalar app</strong> / Añadir a pantalla de inicio. Sin instalar, WhatsApp no mostrará VentasPlus al compartir.</p>
     </div>
     <div class="card">
       <strong style="color:#e9edef">Última acción</strong>
@@ -631,6 +634,85 @@
     a.click();
     toast('Card guardada');
   });
+
+  // --- PWA + Share Target (WhatsApp → VentasPlus) ---
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(function () {});
+  }
+
+  function idbGet(key) {
+    return new Promise(function (resolve, reject) {
+      var open = indexedDB.open('ventasplus-share', 1);
+      open.onupgradeneeded = function () {
+        var db = open.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      };
+      open.onsuccess = function () {
+        var db = open.result;
+        var tx = db.transaction('kv', 'readonly');
+        var req = tx.objectStore('kv').get(key);
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      };
+      open.onerror = function () { reject(open.error); };
+    });
+  }
+  function idbDel(key) {
+    return new Promise(function (resolve) {
+      var open = indexedDB.open('ventasplus-share', 1);
+      open.onsuccess = function () {
+        var db = open.result;
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').delete(key);
+        tx.oncomplete = function () { resolve(); };
+      };
+      open.onerror = function () { resolve(); };
+    });
+  }
+
+  function applySharedPayload(data) {
+    if (!data || !data.imageDataUrl) {
+      toast('No llegó imagen. Comparte de nuevo eligiendo VentasPlus.');
+      return;
+    }
+    // Prefill texto si WhatsApp mandó pie
+    var t = (data.text || data.title || '').trim();
+    if (t) {
+      var lines = t.split(/\n/);
+      if (!$('prodName').value) $('prodName').value = lines[0].slice(0, 80);
+      if (lines.length > 1 && !$('prodDesc').value) $('prodDesc').value = lines.slice(1).join('\n').slice(0, 400);
+    }
+    loadSource(data.imageDataUrl);
+    // tras cargar, pasar a datos automáticamente
+    setTimeout(function () {
+      if (sourceImg) {
+        bakeProductPhoto();
+        showStep('data');
+        $('sheet').classList.add('open');
+        toast('Foto recibida desde otra app — completa precio y envía');
+        $('lastResult').textContent = 'Foto importada por Compartir';
+      }
+    }, 200);
+  }
+
+  function checkIncomingShare() {
+    idbGet('pendingShare').then(function (data) {
+      if (!data) return;
+      return idbDel('pendingShare').then(function () {
+        applySharedPayload(data);
+      });
+    }).catch(function () {});
+  }
+
+  // Al abrir desde share target
+  if (/shared=1/.test(location.search)) {
+    checkIncomingShare();
+    history.replaceState({}, '', './index.html');
+  } else {
+    // por si el SW guardó algo
+    checkIncomingShare();
+  }
+
 })();
 </script>
 </body>

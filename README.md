@@ -25,3 +25,12 @@ export CLOUDFLARE_WORKERS_URL=https://ventasplus-workers.lhmolam-877.workers.dev
 ## OpenWA (opcional)
 
 Sin OpenWA la app sigue útil (compartir nativo). Con OpenWA: define `OPENWA_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`.
+
+## Compartir desde WhatsApp → VentasPlus (Share Target)
+
+1. Abre https://ventasplus.onrender.com en **Chrome Android**.
+2. Menú ⋮ → **Instalar aplicación** / Añadir a inicio.
+3. En WhatsApp: mantén una foto → **Compartir** → elige **VentasPlus**.
+4. Completa precio/nombre → envía la card.
+
+**Límites:** funciona bien en **Android + Chrome** con la PWA instalada. En **iPhone/Safari** Apple casi no permite Share Target para PWAs; haría falta app nativa.
