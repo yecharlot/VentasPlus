@@ -235,3 +235,21 @@ func NormalizeChatID(s string) string {
 	}
 	return d + "@c.us"
 }
+
+
+func (c *Client) ResetSession(sessionID string) error {
+	if sessionID == "" {
+		sessionID = c.SessionID
+	}
+	if sessionID == "" {
+		sessionID = "ventasplus"
+	}
+	code, _, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/reset", map[string]interface{}{})
+	if err != nil {
+		return err
+	}
+	if code >= 300 {
+		return fmt.Errorf("reset HTTP %d: %s", code, string(raw))
+	}
+	return nil
+}

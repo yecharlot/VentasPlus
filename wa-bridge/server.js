@@ -1,14 +1,6 @@
 /**
- * VentasPlus WA Bridge — Baileys (ligero)
- * Compatible con el cliente OpenWA reducido de VentasPlus API:
- *  POST /api/sessions
- *  POST /api/sessions/:id/start
- *  POST /api/sessions/:id/pairing-code  { phoneNumber }
- *  GET  /api/sessions/:id
- *  GET  /api/sessions/:id/qr
- *  POST /api/sessions/:id/messages/send-text
- *  POST /api/sessions/:id/messages/send-image
- * Auth: X-API-Key == process.env.API_MASTER_KEY (si está definida)
+ * VentasPlus WA Bridge — Baileys
+ * Pairing code (sin QR) + QR de respaldo.
  */
 import express from 'express';
 import pino from 'pino';
@@ -19,6 +11,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  Browsers,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
@@ -40,6 +33,10 @@ function auth(req, res, next) {
   next();
 }
 
+function digitsPhone(s) {
+  return String(s || '').replace(/\D/g, '');
+}
+
 function publicSession(s) {
   if (!s) return null;
   return {
@@ -49,12 +46,52 @@ function publicSession(s) {
     phoneNumber: s.phoneNumber || null,
     pairingCode: s.pairingCode || null,
     hasQr: !!s.lastQr,
+    registered: !!s.registered,
   };
 }
 
-async function ensureSocket(id, { phoneNumber } = {}) {
+function wipeSessionDir(id) {
+  const dir = path.join(DATA, id);
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch (_) {}
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+async function closeSocket(id) {
+  const s = sessions.get(id);
+  if (s?.sock) {
+    try {
+      s.sock.end(undefined);
+    } catch (_) {}
+    try {
+      s.sock.ev.removeAllListeners();
+    } catch (_) {}
+  }
+  if (s) {
+    s.sock = null;
+    s.status = 'created';
+    s.pairingCode = null;
+    s.lastQr = null;
+  }
+}
+
+/**
+ * Crea socket Baileys.
+ * Para pairing code: printQRInTerminal false y requestPairingCode si !registered.
+ */
+async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
   let s = sessions.get(id);
-  if (s?.sock && (s.status === 'ready' || s.status === 'qr_ready' || s.status === 'initializing')) {
+  if (forceNew) {
+    await closeSocket(id);
+    wipeSessionDir(id);
+    sessions.delete(id);
+    s = null;
+  }
+
+  if (s?.sock && s.status === 'ready') return s;
+  if (s?.sock && !forceNew && (s.status === 'qr_ready' || s.status === 'initializing')) {
+    if (phoneNumber) s.phoneNumber = digitsPhone(phoneNumber);
     return s;
   }
 
@@ -63,16 +100,16 @@ async function ensureSocket(id, { phoneNumber } = {}) {
   const { state, saveCreds } = await useMultiFileAuthState(dir);
   const { version } = await fetchLatestBaileysVersion();
 
-  s = s || {
+  s = {
     id,
     name: id,
     status: 'initializing',
-    phoneNumber: phoneNumber || null,
+    phoneNumber: digitsPhone(phoneNumber) || null,
     pairingCode: null,
     lastQr: null,
+    registered: !!state.creds?.registered,
     sock: null,
   };
-  s.status = 'initializing';
   sessions.set(id, s);
 
   const sock = makeWASocket({
@@ -80,7 +117,8 @@ async function ensureSocket(id, { phoneNumber } = {}) {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
-    browser: ['VentasPlus', 'Chrome', '120.0.0'],
+    browser: Browsers.ubuntu('Chrome'),
+    markOnlineOnConnect: false,
   });
   s.sock = sock;
 
@@ -90,38 +128,49 @@ async function ensureSocket(id, { phoneNumber } = {}) {
     const { connection, lastDisconnect, qr } = update;
     if (qr) {
       s.lastQr = qr;
-      s.status = 'qr_ready';
-      // Si hay número, pedir pairing code (sin QR)
-      if (s.phoneNumber) {
-        try {
-          const code = await sock.requestPairingCode(s.phoneNumber);
-          s.pairingCode = code;
-          s.status = 'qr_ready';
-          log.info({ id, code }, 'pairing code');
-        } catch (e) {
-          log.warn({ err: String(e) }, 'pairing code failed');
-        }
-      }
+      if (s.status !== 'ready') s.status = 'qr_ready';
     }
     if (connection === 'open') {
       s.status = 'ready';
+      s.registered = true;
       s.pairingCode = null;
       s.lastQr = null;
       log.info({ id }, 'whatsapp ready');
     }
     if (connection === 'close') {
-      const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
       s.status = 'disconnected';
       s.sock = null;
-      const restart = code !== DisconnectReason.loggedOut;
-      log.warn({ id, code, restart }, 'connection closed');
-      if (restart) {
-        setTimeout(() => ensureSocket(id, { phoneNumber: s.phoneNumber }).catch(() => {}), 2000);
+      const loggedOut = statusCode === DisconnectReason.loggedOut;
+      log.warn({ id, statusCode, loggedOut }, 'connection closed');
+      if (!loggedOut) {
+        setTimeout(() => {
+          ensureSocket(id, { phoneNumber: s.phoneNumber }).catch((e) =>
+            log.warn({ err: String(e) }, 'reconnect failed')
+          );
+        }, 2500);
       } else {
         s.status = 'failed';
       }
     }
   });
+
+  // Pairing code: solo si aún no está registrado (docs Baileys)
+  if (!state.creds?.registered && s.phoneNumber) {
+    try {
+      // pequeño delay para que el socket inicie el handshake
+      await new Promise((r) => setTimeout(r, 1500));
+      const code = await sock.requestPairingCode(s.phoneNumber);
+      s.pairingCode = String(code || '').toUpperCase();
+      s.status = 'qr_ready';
+      log.info({ id, code: s.pairingCode }, 'pairing code issued');
+    } catch (e) {
+      log.warn({ err: String(e) }, 'requestPairingCode failed');
+      s.status = 'qr_ready'; // puede quedar QR como respaldo
+    }
+  } else if (state.creds?.registered) {
+    s.status = 'initializing'; // esperando open
+  }
 
   sessions.set(id, s);
   return s;
@@ -129,18 +178,33 @@ async function ensureSocket(id, { phoneNumber } = {}) {
 
 const app = express();
 app.use(express.json({ limit: '15mb' }));
+
 app.get('/health', (_, res) => res.json({ ok: true, service: 'ventasplus-wa-bridge' }));
-app.get('/', (_, res) => res.json({ ok: true, service: 'ventasplus-wa-bridge', auth: !!API_KEY }));
+app.get('/', (_, res) =>
+  res.json({
+    ok: true,
+    service: 'ventasplus-wa-bridge',
+    auth: !!API_KEY,
+    tip: 'Usa pairing-code con número país+número sin +',
+  })
+);
 
 app.use('/api', auth);
 
 app.post('/api/sessions', async (req, res) => {
   const name = (req.body?.name || 'ventasplus').replace(/[^a-zA-Z0-9_-]/g, '') || 'ventasplus';
-  const id = name;
-  if (!sessions.has(id)) {
-    sessions.set(id, { id, name, status: 'created', phoneNumber: null, pairingCode: null, lastQr: null, sock: null });
+  if (!sessions.has(name)) {
+    sessions.set(name, {
+      id: name,
+      name,
+      status: 'created',
+      phoneNumber: null,
+      pairingCode: null,
+      lastQr: null,
+      sock: null,
+    });
   }
-  res.status(201).json({ id, name, status: sessions.get(id).status });
+  res.status(201).json({ id: name, name, status: sessions.get(name).status });
 });
 
 app.get('/api/sessions/:id', (req, res) => {
@@ -158,59 +222,100 @@ app.post('/api/sessions/:id/start', async (req, res) => {
   }
 });
 
-app.post('/api/sessions/:id/pairing-code', async (req, res) => {
+/** Reinicia sesión (borra credenciales) — útil si “no se puede vincular” */
+app.post('/api/sessions/:id/reset', async (req, res) => {
   try {
-    let phone = String(req.body?.phoneNumber || '').replace(/\D/g, '');
-    if (phone.length < 8) return res.status(400).json({ error: 'phoneNumber required' });
-    let s = sessions.get(req.params.id);
-    if (!s) {
-      sessions.set(req.params.id, { id: req.params.id, name: req.params.id, status: 'created', phoneNumber: phone, pairingCode: null, lastQr: null, sock: null });
-    } else {
-      s.phoneNumber = phone;
-    }
-    s = await ensureSocket(req.params.id, { phoneNumber: phone });
-    // esperar código un poco
-    for (let i = 0; i < 15; i++) {
-      if (s.pairingCode) break;
-      await new Promise((r) => setTimeout(r, 500));
-      s = sessions.get(req.params.id);
-    }
-    if (!s.pairingCode && s.sock && s.status === 'qr_ready') {
-      try {
-        s.pairingCode = await s.sock.requestPairingCode(phone);
-      } catch (e) {
-        return res.status(409).json({ error: String(e), status: s.status });
-      }
-    }
-    if (!s.pairingCode) {
-      return res.status(409).json({
-        error: 'pairing code not ready yet; retry',
-        status: s.status,
-      });
-    }
-    res.status(201).json({ pairingCode: s.pairingCode, status: s.status });
+    await closeSocket(req.params.id);
+    wipeSessionDir(req.params.id);
+    sessions.delete(req.params.id);
+    res.json({ ok: true, status: 'reset' });
   } catch (e) {
     res.status(500).json({ error: String(e) });
+  }
+});
+
+app.post('/api/sessions/:id/pairing-code', async (req, res) => {
+  try {
+    const phone = digitsPhone(req.body?.phoneNumber);
+    if (phone.length < 10 || phone.length > 15) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Número inválido. Usa código de país + número, solo dígitos (ej. 56912345678). Sin 0 inicial del local.',
+      });
+    }
+
+    // Siempre sesión limpia al pedir código nuevo
+    await closeSocket(req.params.id);
+    wipeSessionDir(req.params.id);
+    sessions.delete(req.params.id);
+
+    const s = await ensureSocket(req.params.id, { phoneNumber: phone, forceNew: true });
+
+    // Esperar código hasta ~12s
+    for (let i = 0; i < 24; i++) {
+      if (s.pairingCode) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    // Reintento explícito
+    if (!s.pairingCode && s.sock && !s.registered) {
+      try {
+        await new Promise((r) => setTimeout(r, 800));
+        s.pairingCode = String(await s.sock.requestPairingCode(phone)).toUpperCase();
+      } catch (e) {
+        log.warn({ err: String(e) }, 'retry pairing failed');
+      }
+    }
+
+    if (!s.pairingCode) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          'No se generó el código. Prueba de nuevo en 10s. En el teléfono: WhatsApp → Dispositivos vinculados → Vincular con el número de teléfono.',
+        status: s.status,
+        hasQr: !!s.lastQr,
+        sessionId: s.id,
+      });
+    }
+
+    res.status(201).json({
+      ok: true,
+      pairingCode: s.pairingCode,
+      status: s.status,
+      sessionId: s.id,
+      instructions:
+        'En el MISMO número: WhatsApp → Menú → Dispositivos vinculados → Vincular un dispositivo → Vincular con el número de teléfono → escribe el código (caduca en ~1 min).',
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
   }
 });
 
 app.get('/api/sessions/:id/qr', async (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'not found' });
-  if (!s.lastQr) return res.status(404).json({ error: 'no qr', status: s.status });
+  if (!s.lastQr) {
+    // intentar levantar socket para obtener QR
+    try {
+      await ensureSocket(req.params.id, { forceNew: !s.sock });
+      for (let i = 0; i < 20 && !s.lastQr; i++) await new Promise((r) => setTimeout(r, 400));
+    } catch (_) {}
+  }
+  if (!s.lastQr) return res.status(404).json({ error: 'no qr yet', status: s?.status });
   const dataUrl = await qrcode.toDataURL(s.lastQr);
   res.json({ qr: dataUrl, status: s.status });
 });
 
 app.post('/api/sessions/:id/messages/send-text', async (req, res) => {
   const s = sessions.get(req.params.id);
-  if (!s?.sock || s.status !== 'ready') return res.status(409).json({ error: 'session not ready', status: s?.status });
+  if (!s?.sock || s.status !== 'ready') {
+    return res.status(409).json({ error: 'session not ready', status: s?.status });
+  }
   let jid = String(req.body?.chatId || '');
-  if (!jid.includes('@')) jid = jid.replace(/\D/g, '') + '@s.whatsapp.net';
+  if (!jid.includes('@')) jid = digitsPhone(jid) + '@s.whatsapp.net';
   jid = jid.replace('@c.us', '@s.whatsapp.net');
-  const text = String(req.body?.text || '');
   try {
-    const r = await s.sock.sendMessage(jid, { text });
+    const r = await s.sock.sendMessage(jid, { text: String(req.body?.text || '') });
     res.status(201).json({ ok: true, messageId: r?.key?.id });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) });
@@ -219,21 +324,19 @@ app.post('/api/sessions/:id/messages/send-text', async (req, res) => {
 
 app.post('/api/sessions/:id/messages/send-image', async (req, res) => {
   const s = sessions.get(req.params.id);
-  if (!s?.sock || s.status !== 'ready') return res.status(409).json({ error: 'session not ready', status: s?.status });
+  if (!s?.sock || s.status !== 'ready') {
+    return res.status(409).json({ error: 'session not ready', status: s?.status });
+  }
   let jid = String(req.body?.chatId || '');
-  if (!jid.includes('@')) jid = jid.replace(/\D/g, '') + '@s.whatsapp.net';
+  if (!jid.includes('@')) jid = digitsPhone(jid) + '@s.whatsapp.net';
   jid = jid.replace('@c.us', '@s.whatsapp.net');
   const caption = String(req.body?.caption || '');
   const image = req.body?.image || {};
   try {
     let payload;
-    if (image.url) {
-      payload = { image: { url: image.url }, caption };
-    } else if (image.base64) {
-      payload = { image: Buffer.from(image.base64, 'base64'), caption };
-    } else {
-      return res.status(400).json({ error: 'image.url or image.base64 required' });
-    }
+    if (image.url) payload = { image: { url: image.url }, caption };
+    else if (image.base64) payload = { image: Buffer.from(image.base64, 'base64'), caption };
+    else return res.status(400).json({ error: 'image.url or image.base64 required' });
     const r = await s.sock.sendMessage(jid, payload);
     res.status(201).json({ ok: true, messageId: r?.key?.id });
   } catch (e) {

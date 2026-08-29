@@ -171,19 +171,17 @@ func (h *Handlers) waPairing(w http.ResponseWriter, r *http.Request) {
 	}
 	sid := req.SessionID
 	if sid == "" {
-		var err error
-		sid, _, err = h.WA.EnsureSession("ventasplus")
-		if err != nil {
-			w.WriteHeader(502)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
-			return
-		}
-		_, _ = h.WA.StartSession(sid)
-		// pequeño respiro para qr_ready
-		time.Sleep(1500 * time.Millisecond)
+		sid = "ventasplus"
+	}
+	// Sesión limpia evita códigos inválidos / "no se pueden vincular"
+	_ = h.WA.ResetSession(sid)
+	_, _, err := h.WA.EnsureSession(sid)
+	if err != nil {
+		// EnsureSession puede fallar si ya existe — seguimos
+		_ = err
 	}
 	h.WA.SessionID = sid
-out, err := h.WA.RequestPairingCode(sid, req.PhoneNumber)
+	out, err := h.WA.RequestPairingCode(sid, req.PhoneNumber)
 	if err != nil {
 		w.WriteHeader(502)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out, "sessionId": sid})

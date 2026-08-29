@@ -1,5 +1,5 @@
 /* VentasPlus SW v5 — Share Target */
-const CACHE = 'ventasplus-v9';
+const CACHE = 'ventasplus-v10';
 const ASSETS = [
   '/',
   '/index.html',
