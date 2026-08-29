@@ -19,7 +19,7 @@ type Client struct {
 func NewFromEnv() *Client {
 	base := os.Getenv("CLOUDFLARE_WORKERS_URL")
 	if base == "" {
-		base = "https://ventasplus-workers.yecharlot.workers.dev"
+		base = "https://ventasplus-workers.lhmolam-877.workers.dev"
 	}
 	return &Client{
 		BaseURL: base,
