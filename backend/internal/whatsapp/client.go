@@ -6,19 +6,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"net/url"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// OpenWA REST client — https://docs.open-wa.org/
+var sessionSafe = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
+
+// OpenWA / wa-bridge REST client
 type Client struct {
-	BaseURL   string
-	APIKey    string
-	SessionID string
-	HTTP      *http.Client
+	BaseURL string
+	APIKey  string
+	HTTP    *http.Client
 }
 
 func NewFromEnv() *Client {
@@ -27,15 +29,27 @@ func NewFromEnv() *Client {
 		base = "http://localhost:2785"
 	}
 	return &Client{
-		BaseURL:   strings.TrimRight(base, "/"),
-		APIKey:    os.Getenv("OPENWA_API_KEY"),
-		SessionID: os.Getenv("OPENWA_SESSION_ID"),
-		HTTP:      &http.Client{Timeout: 45 * time.Second},
+		BaseURL: strings.TrimRight(base, "/"),
+		APIKey:  os.Getenv("OPENWA_API_KEY"),
+		HTTP:    &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
 func (c *Client) Enabled() bool {
 	return c.BaseURL != "" && c.APIKey != ""
+}
+
+// SanitizeSessionID convierte un device id en id de sesión seguro.
+func SanitizeSessionID(id string) string {
+	id = strings.TrimSpace(id)
+	id = sessionSafe.ReplaceAllString(id, "")
+	if len(id) > 64 {
+		id = id[:64]
+	}
+	if id == "" {
+		return ""
+	}
+	return id
 }
 
 func (c *Client) do(method, path string, body any) (int, map[string]interface{}, []byte, error) {
@@ -57,7 +71,7 @@ func (c *Client) do(method, path string, body any) (int, map[string]interface{},
 		return 0, nil, nil, err
 	}
 	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 4<<20))
 	var out map[string]interface{}
 	_ = json.Unmarshal(raw, &out)
 	if out == nil {
@@ -66,58 +80,54 @@ func (c *Client) do(method, path string, body any) (int, map[string]interface{},
 	return res.StatusCode, out, raw, nil
 }
 
-// EnsureSession creates a session if OPENWA_SESSION_ID empty; returns session id.
 func (c *Client) EnsureSession(name string) (string, map[string]interface{}, error) {
-	if c.SessionID != "" {
-		code, out, _, err := c.do(http.MethodGet, "/api/sessions/"+c.SessionID, nil)
-		if err == nil && code < 300 {
-			return c.SessionID, out, nil
-		}
-	}
+	name = SanitizeSessionID(name)
 	if name == "" {
-		name = "ventasplus"
+		return "", nil, fmt.Errorf("session id vacío")
 	}
 	code, out, raw, err := c.do(http.MethodPost, "/api/sessions", map[string]string{"name": name})
 	if err != nil {
 		return "", nil, err
 	}
+	// 201 or 200 ok
 	if code >= 300 {
+		// puede existir: GET
+		code2, out2, _, err2 := c.do(http.MethodGet, "/api/sessions/"+name, nil)
+		if err2 == nil && code2 < 300 {
+			return name, out2, nil
+		}
 		return "", out, fmt.Errorf("create session HTTP %d: %s", code, string(raw))
 	}
 	id, _ := out["id"].(string)
 	if id == "" {
-		if d, ok := out["data"].(map[string]interface{}); ok {
-			id, _ = d["id"].(string)
-		}
+		id = name
 	}
-	if id == "" {
-		return "", out, fmt.Errorf("no session id in response")
-	}
-	c.SessionID = id
 	return id, out, nil
 }
 
 func (c *Client) StartSession(sessionID string) (map[string]interface{}, error) {
-	if sessionID == "" {
-		sessionID = c.SessionID
-	}
+	sessionID = SanitizeSessionID(sessionID)
 	code, out, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/start", map[string]interface{}{})
 	if err != nil {
 		return nil, err
 	}
-	if code >= 300 && code != 400 { // 400 may mean already started
+	if code >= 300 && code != 400 {
 		return out, fmt.Errorf("start HTTP %d: %s", code, string(raw))
 	}
 	return out, nil
 }
 
 func (c *Client) Status(sessionID string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
 	if sessionID == "" {
-		sessionID = c.SessionID
+		return map[string]interface{}{"status": "none", "connected": false}, nil
 	}
 	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID, nil)
 	if err != nil {
 		return nil, err
+	}
+	if code == 404 {
+		return map[string]interface{}{"status": "not_found", "connected": false}, nil
 	}
 	if code >= 300 {
 		return out, fmt.Errorf("status HTTP %d: %s", code, string(raw))
@@ -125,12 +135,8 @@ func (c *Client) Status(sessionID string) (map[string]interface{}, error) {
 	return out, nil
 }
 
-// RequestPairingCode — alternativa al QR: código de 8 caracteres.
-// phoneNumber: solo dígitos con código país (ej. 56912345678).
 func (c *Client) RequestPairingCode(sessionID, phoneNumber string) (map[string]interface{}, error) {
-	if sessionID == "" {
-		sessionID = c.SessionID
-	}
+	sessionID = SanitizeSessionID(sessionID)
 	phoneNumber = digitsOnly(phoneNumber)
 	code, out, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/pairing-code", map[string]string{
 		"phoneNumber": phoneNumber,
@@ -145,9 +151,7 @@ func (c *Client) RequestPairingCode(sessionID, phoneNumber string) (map[string]i
 }
 
 func (c *Client) GetQR(sessionID string) (map[string]interface{}, error) {
-	if sessionID == "" {
-		sessionID = c.SessionID
-	}
+	sessionID = SanitizeSessionID(sessionID)
 	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/qr", nil)
 	if err != nil {
 		return nil, err
@@ -158,22 +162,39 @@ func (c *Client) GetQR(sessionID string) (map[string]interface{}, error) {
 	return out, nil
 }
 
-func (c *Client) SendText(chatID, text string) (map[string]interface{}, error) {
-	path := fmt.Sprintf("/api/sessions/%s/messages/send-text", c.SessionID)
+func (c *Client) ResetSession(sessionID string) error {
+	sessionID = SanitizeSessionID(sessionID)
+	if sessionID == "" {
+		return fmt.Errorf("session id vacío")
+	}
+	code, _, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/reset", map[string]interface{}{})
+	if err != nil {
+		return err
+	}
+	if code >= 300 {
+		return fmt.Errorf("reset HTTP %d: %s", code, string(raw))
+	}
+	return nil
+}
+
+func (c *Client) SendText(sessionID, chatID, text string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	path := fmt.Sprintf("/api/sessions/%s/messages/send-text", sessionID)
 	code, out, raw, err := c.do(http.MethodPost, path, map[string]string{"chatId": chatID, "text": text})
 	if err != nil {
 		return nil, err
 	}
 	if code >= 300 {
 		out["ok"] = false
-		return out, fmt.Errorf("openwa HTTP %d: %s", code, string(raw))
+		return out, fmt.Errorf("send-text HTTP %d: %s", code, string(raw))
 	}
 	out["ok"] = true
 	return out, nil
 }
 
-func (c *Client) SendImage(chatID, caption, imageDataURL string) (map[string]interface{}, error) {
-	path := fmt.Sprintf("/api/sessions/%s/messages/send-image", c.SessionID)
+func (c *Client) SendImage(sessionID, chatID, caption, imageDataURL string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	path := fmt.Sprintf("/api/sessions/%s/messages/send-image", sessionID)
 	body := map[string]interface{}{
 		"chatId":  chatID,
 		"caption": caption,
@@ -193,22 +214,51 @@ func (c *Client) SendImage(chatID, caption, imageDataURL string) (map[string]int
 	}
 	if code >= 300 {
 		out["ok"] = false
-		return out, fmt.Errorf("openwa HTTP %d: %s", code, string(raw))
+		return out, fmt.Errorf("send-image HTTP %d: %s", code, string(raw))
 	}
 	out["ok"] = true
 	return out, nil
 }
 
-func (c *Client) ListGroups() (map[string]interface{}, error) {
-	if c.SessionID == "" {
-		return nil, fmt.Errorf("OPENWA_SESSION_ID not set")
-	}
-	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+c.SessionID+"/groups", nil)
+func (c *Client) ListGroups(sessionID string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/groups", nil)
 	if err != nil {
 		return nil, err
 	}
 	if code >= 300 {
 		return out, fmt.Errorf("groups HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
+
+func (c *Client) Destinations(sessionID string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/destinations", nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("destinations HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
+
+func (c *Client) ChatMedia(sessionID, jid string, limit int) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	if limit <= 0 {
+		limit = 30
+	}
+	q := url.Values{}
+	q.Set("jid", jid)
+	q.Set("limit", strconv.Itoa(limit))
+	path := "/api/sessions/" + sessionID + "/media?" + q.Encode()
+	code, out, raw, err := c.do(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("media HTTP %d: %s", code, string(raw))
 	}
 	return out, nil
 }
@@ -238,62 +288,15 @@ func NormalizeChatID(s string) string {
 	return d + "@c.us"
 }
 
-
-func (c *Client) ResetSession(sessionID string) error {
-	if sessionID == "" {
-		sessionID = c.SessionID
+// IsConnected interpreta el status del bridge.
+func IsConnected(st map[string]interface{}) bool {
+	if st == nil {
+		return false
 	}
-	if sessionID == "" {
-		sessionID = "ventasplus"
+	if c, ok := st["connected"].(bool); ok {
+		return c
 	}
-	code, _, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/reset", map[string]interface{}{})
-	if err != nil {
-		return err
-	}
-	if code >= 300 {
-		return fmt.Errorf("reset HTTP %d: %s", code, string(raw))
-	}
-	return nil
-}
-
-func (c *Client) Destinations(sessionID string) (map[string]interface{}, error) {
-	if sessionID == "" {
-		sessionID = c.SessionID
-	}
-	if sessionID == "" {
-		sessionID = "ventasplus"
-	}
-	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/destinations", nil)
-	if err != nil {
-		return nil, err
-	}
-	if code >= 300 {
-		return out, fmt.Errorf("destinations HTTP %d: %s", code, string(raw))
-	}
-	return out, nil
-}
-
-
-func (c *Client) ChatMedia(sessionID, jid string, limit int) (map[string]interface{}, error) {
-	if sessionID == "" {
-		sessionID = c.SessionID
-	}
-	if sessionID == "" {
-		sessionID = "ventasplus"
-	}
-	if limit <= 0 {
-		limit = 30
-	}
-	q := url.Values{}
-	q.Set("jid", jid)
-	q.Set("limit", strconv.Itoa(limit))
-	path := "/api/sessions/" + sessionID + "/media?" + q.Encode()
-	code, out, raw, err := c.do(http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	if code >= 300 {
-		return out, fmt.Errorf("media HTTP %d: %s", code, string(raw))
-	}
-	return out, nil
+	s, _ := st["status"].(string)
+	s = strings.ToLower(s)
+	return s == "ready" || s == "authenticated" || s == "connected"
 }

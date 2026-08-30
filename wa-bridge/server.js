@@ -40,14 +40,30 @@ function digitsPhone(s) {
 
 function publicSession(s) {
   if (!s) return null;
+  // Solo "ready" si el socket tiene usuario activo (vínculo real con WhatsApp)
+  let status = s.status;
+  let connected = false;
+  if (s.sock && s.sock.user && s.sock.user.id) {
+    status = 'ready';
+    connected = true;
+    s.status = 'ready';
+    s.registered = true;
+  } else if (status === 'ready' && !(s.sock && s.sock.user)) {
+    // zombie: VentasPlus creía listo pero WhatsApp ya no tiene el dispositivo
+    status = 'disconnected';
+    s.status = 'disconnected';
+    connected = false;
+  }
   return {
     id: s.id,
     name: s.name,
-    status: s.status,
+    status,
+    connected,
     phoneNumber: s.phoneNumber || null,
     pairingCode: s.pairingCode || null,
     hasQr: !!s.lastQr,
     registered: !!s.registered,
+    user: s.sock?.user?.id || null,
   };
 }
 

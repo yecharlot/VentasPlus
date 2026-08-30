@@ -167,6 +167,10 @@
     <div class="panel" id="waConnectPanel">
       <h2>Conectar WhatsApp</h2>
       <p class="muted" id="waConnectStatus">Comprobando…</p>
+      <p class="muted" id="deviceLabel" style="font-size:0.72rem;margin-top:0.25rem"></p>
+      <div class="stack" id="waLinkedActions" style="display:none;margin-top:0.5rem">
+        <button type="button" class="btn-dark" id="btnUnlinkWA">Desvincular este teléfono</button>
+      </div>
       <div id="waPairBox" style="display:none">
         <p class="muted">Escribe el <strong>mismo número</strong> de tu WhatsApp (código de país, sin + ni espacios). Ej. Chile: 56912345678.</p>
         <p class="muted" style="margin-top:0.35rem">Luego en el teléfono: <strong>WhatsApp → ⋮ o Ajustes → Dispositivos vinculados → Vincular un dispositivo → Vincular con el número de teléfono</strong> y escribe el código al momento (caduca rápido).</p>
@@ -704,7 +708,7 @@
       });
       status.textContent = 'Enviando a ' + chats.length + ' destino(s) (con pausas de seguridad)…';
       try {
-        var res = await fetch(API_BASE + '/api/publish', {
+        var res = await apiFetch('/api/publish', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -807,6 +811,25 @@
   // PWA install + share target
   var deferredPrompt = null;
   var API_BASE = (localStorage.getItem('vp_api_base') || 'https://ventasplus-api.onrender.com').replace(/\/$/, '');
+  function getDeviceId() {
+    var k = 'vp_device_id';
+    var id = localStorage.getItem(k);
+    if (!id) {
+      id = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(k, id);
+    }
+    return id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  }
+  var DEVICE_ID = getDeviceId();
+  function apiFetch(path, opts) {
+    opts = opts || {};
+    var headers = Object.assign({}, opts.headers || {});
+    headers['X-Device-Id'] = DEVICE_ID;
+    if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    opts.headers = headers;
+    return fetch(API_BASE + path, opts);
+  }
+
   var openwaReady = false;
 
   function isAndroid() {
@@ -856,7 +879,7 @@
   else if ($('btnInstallHdr') && !isAndroid()) $('btnInstallHdr').classList.add('hidden-install');
 
   function checkOpenWA() {
-    fetch(API_BASE + '/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
+    apiFetch('/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
       openwaReady = !!(info && info.openwa_session);
       var box = $('openwaBox');
       if (box) box.style.display = openwaReady ? 'block' : 'none';
@@ -873,11 +896,134 @@
 
   // --- Conectar WhatsApp (código de emparejamiento / Cloud) ---
 
+
+  function applyTemplate(body, name, price, desc) {
+    return String(body || '')
+      .replace(/\{\{nombre\}\}/gi, name || '')
+      .replace(/\{\{precio\}\}/gi, price || '')
+      .replace(/\{\{detalle\}\}/gi, desc || '');
+  }
+  function loadTemplates() {
+    apiFetch('/api/templates').then(function (r) { return r.json(); }).then(function (data) {
+      var sel = $('tplSelect');
+      if (!sel || !data || !data.templates) return;
+      var h = '<option value="">— Sin plantilla —</option>';
+      data.templates.forEach(function (t) {
+        h += '<option value="' + t.id + '" data-body="' + encodeURIComponent(t.body || '') + '">' + (t.name || t.id) + '</option>';
+      });
+      sel.innerHTML = h;
+    }).catch(function () {});
+  }
+  if ($('tplSelect') && !$('tplSelect')._bound) {
+    $('tplSelect')._bound = true;
+    $('tplSelect').addEventListener('change', function () {
+      var opt = this.options[this.selectedIndex];
+      if (!opt || !opt.getAttribute('data-body')) return;
+      var filled = applyTemplate(decodeURIComponent(opt.getAttribute('data-body')), $('prodName').value, $('prodPrice').value, $('prodDesc').value);
+      if (filled) $('prodDesc').value = filled;
+      toast('Plantilla aplicada');
+    });
+  }
+  function loadLimits() {
+    apiFetch('/api/whatsapp/limits').then(function (r) { return r.json(); }).then(function (data) {
+      var L = (data && data.limits) || {};
+      if ($('limitsInfo')) {
+        $('limitsInfo').textContent =
+          'Máx. ' + (L.maxDestinations || 5) + ' destinos · ' +
+          (L.minDelayMs || 3500) + ' ms entre mensajes · ' +
+          (L.maxPerHour || 25) + '/hora · ' + (L.maxPerDay || 80) + '/día · ' +
+          'Hoy: ' + (L.sendsLastDay || 0) + ' · Hora: ' + (L.sendsLastHour || 0);
+      }
+    }).catch(function () {});
+  }
+  function loadHistory() {
+    var el = $('historyList');
+    if (!el) return;
+    el.textContent = 'Cargando…';
+    apiFetch('/api/publications').then(function (r) { return r.json(); }).then(function (data) {
+      var items = [];
+      if (data && data.data) {
+        if (Array.isArray(data.data)) items = data.data;
+        else if (data.data.items) items = data.data.items;
+        else if (data.data.publications) items = data.data.publications;
+      }
+      if (!items.length) { el.textContent = 'Sin historial aún.'; return; }
+      el.innerHTML = items.slice(0, 15).map(function (it) {
+        var name = (it.products && it.products[0] && it.products[0].name) || it.id || 'Publicación';
+        return '· ' + name;
+      }).join('<br/>');
+    }).catch(function () { el.textContent = 'No se pudo cargar.'; });
+  }
+  if ($('btnHistory') && !$('btnHistory')._bound) {
+    $('btnHistory')._bound = true;
+    $('btnHistory').addEventListener('click', function (e) { e.preventDefault(); loadHistory(); });
+  }
+  function fillInboxGroups() {
+    apiFetch('/api/whatsapp/destinations').then(function (r) { return r.json(); }).then(function (data) {
+      var sel = $('inboxGroup');
+      if (!sel) return;
+      var groups = (data && data.groups) || [];
+      var h = '<option value="">— Elige grupo —</option>';
+      groups.forEach(function (g) {
+        h += '<option value="' + String(g.id).replace(/"/g, '') + '">' + String(g.name || g.id).replace(/</g, '') + '</option>';
+      });
+      sel.innerHTML = h;
+      if ($('inboxPanel')) $('inboxPanel').style.display = groups.length ? 'block' : 'none';
+    }).catch(function () {});
+  }
+  if ($('btnLoadMedia') && !$('btnLoadMedia')._bound) {
+    $('btnLoadMedia')._bound = true;
+    $('btnLoadMedia').addEventListener('click', function (e) {
+      e.preventDefault();
+      var jid = $('inboxGroup').value;
+      if (!jid) return toast('Elige un grupo');
+      $('inboxNote').textContent = 'Cargando…';
+      $('inboxGrid').innerHTML = '';
+      apiFetch('/api/whatsapp/media?jid=' + encodeURIComponent(jid) + '&limit=24')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var items = (data && data.items) || [];
+          $('inboxNote').textContent = data.note || (items.length + ' fotos');
+          items.forEach(function (it) {
+            if (!it.dataUrl) return;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-dark';
+            btn.style.padding = '0';
+            btn.style.minHeight = '0';
+            btn.innerHTML = '<img src="' + it.dataUrl + '" style="width:100%;aspect-ratio:1;object-fit:cover;display:block"/>';
+            btn.addEventListener('click', function () {
+              productPhotoDataURL = it.dataUrl;
+              loadSource(it.dataUrl);
+              if (it.caption && !$('prodDesc').value) $('prodDesc').value = it.caption;
+              openSheet();
+              setTimeout(function () { bakeProductPhoto(); showStep('data'); }, 300);
+              toast('Foto lista — completa precio');
+            });
+            $('inboxGrid').appendChild(btn);
+          });
+        })
+        .catch(function () { $('inboxNote').textContent = 'Error al cargar fotos'; });
+    });
+  }
+  function selectedDestinations() {
+    var sel = $('waDestSelect');
+    var out = [];
+    if (sel && sel.selectedOptions) {
+      for (var i = 0; i < sel.selectedOptions.length; i++) {
+        if (sel.selectedOptions[i].value) out.push(sel.selectedOptions[i].value);
+      }
+    }
+    var manual = ($('waDest') && $('waDest').value || '').trim();
+    if (manual) out.push(manual);
+    return out.filter(function (v, i, a) { return a.indexOf(v) === i; });
+  }
+
   function loadDestinations() {
     var sel = $('waDestSelect');
     if (!sel) return;
     sel.innerHTML = '<option value="">Cargando grupos y contactos…</option>';
-    fetch(API_BASE + '/api/whatsapp/destinations')
+    apiFetch('/api/whatsapp/destinations')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) {
@@ -921,7 +1067,7 @@
   var _oldRefresh = typeof refreshWAConnectUI === 'function' ? refreshWAConnectUI : null;
 
   function refreshWAConnectUI() {
-    fetch(API_BASE + '/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
+    apiFetch('/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
       var st = $('waConnectStatus');
       var pairBox = $('waPairBox');
       var cloudHint = $('waCloudHint');
@@ -943,6 +1089,7 @@
         if (info.openwa_connected) {
           st.innerHTML = '<span class="ok">WhatsApp vinculado (OpenWA).</span>';
           if (pairBox) pairBox.style.display = 'none';
+          if ($('waLinkedActions')) $('waLinkedActions').style.display = 'flex';
           openwaReady = true;
           loadDestinations();
           fillInboxGroups();
@@ -951,6 +1098,7 @@
         } else {
           st.textContent = 'WhatsApp no vinculado. Usa el código (sin QR).';
           if (pairBox) pairBox.style.display = 'block';
+          if ($('waLinkedActions')) $('waLinkedActions').style.display = 'none';
           openwaReady = false;
         }
         if (cloudHint) cloudHint.style.display = 'none';
@@ -964,6 +1112,16 @@
       if ($('waConnectStatus')) $('waConnectStatus').textContent = 'No se pudo contactar la API.';
     });
   }
+  if ($('btnUnlinkWA')) {
+    $('btnUnlinkWA').addEventListener('click', function (e) {
+      e.preventDefault();
+      if (!confirm('¿Desvincular WhatsApp solo en este teléfono?')) return;
+      apiFetch('/api/whatsapp/unlink', { method: 'POST', body: '{}' })
+        .then(function (r) { return r.json(); })
+        .then(function () { openwaReady = false; toast('Desvinculado'); refreshWAConnectUI(); })
+        .catch(function () { toast('No se pudo desvincular'); });
+    });
+  }
   if ($('btnPairCode')) {
     $('btnPairCode').addEventListener('click', function (e) {
       e.preventDefault();
@@ -971,9 +1129,9 @@
       if (phone.length < 8) return toast('Escribe el número con código de país');
       $('pairResult').textContent = '…';
       $('btnPairCode').disabled = true;
-      fetch(API_BASE + '/api/whatsapp/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      apiFetch('/api/whatsapp/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function () {
-          return fetch(API_BASE + '/api/whatsapp/pairing-code', {
+          return apiFetch('/api/whatsapp/pairing-code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phoneNumber: phone })
@@ -994,7 +1152,7 @@
           var timer = setInterval(function () {
             tries++;
             refreshWAConnectUI();
-            fetch(API_BASE + '/api/whatsapp/status').then(function (r) { return r.json(); }).then(function (st) {
+            apiFetch('/api/whatsapp/status').then(function (r) { return r.json(); }).then(function (st) {
               if (st.connected) {
                 clearInterval(timer);
                 toast('WhatsApp conectado');
@@ -1018,6 +1176,7 @@
       _ft = setTimeout(loadDestinations, 250);
     });
   }
+  if ($('deviceLabel')) $('deviceLabel').textContent = 'Dispositivo: ' + DEVICE_ID.slice(0, 14) + '…';
   loadTemplates();
   loadLimits();
   refreshWAConnectUI();
