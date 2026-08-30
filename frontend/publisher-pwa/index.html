@@ -161,7 +161,7 @@
   <div id="viewMain">
     <header class="appbar">
       <h1>VentasPlus</h1>
-      <button type="button" class="icon" id="btnLink" title="Vincular" aria-label="Vincular">
+      <button type="button" class="icon" id="btnLink" title="Avanzado (no recomendado)" aria-label="Vincular">
         <svg viewBox="0 0 24 24"><path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8z"/></svg>
       </button>
       <button type="button" class="icon" id="btnRefresh" title="Actualizar" aria-label="Actualizar">
@@ -179,7 +179,7 @@
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input id="chatFilter" placeholder="Buscar…" autocomplete="off" />
       </div>
-      <div class="list" id="chatList"><div class="empty">Vincula WhatsApp para ver chats y grupos</div></div>
+      <div class="list" id="chatList"><div class="empty">Crea una oferta con + y compártela a WhatsApp</div></div>
     </div>
 
     <div id="tabTools" style="display:none">
@@ -313,7 +313,8 @@
   }
   $('deviceLabel').textContent = 'Dispositivo '+DEVICE_ID.slice(0,12)+'…';
 
-  var linked=false, chats=[], currentJid=null, currentName='';
+  var MODO_SEGURO=true; // sin vínculo OpenWA por defecto
+var linked=false, chats=[], currentJid=null, currentName='';
   var sourceImg=null, cropRect=null, dragging=false, startX=0, startY=0;
   var productPhotoDataURL=null, offerDataURL=null, offerTargetJid=null;
 
@@ -350,7 +351,7 @@
         $('btnUnlink').style.display='flex';
         loadChats();
       } else {
-        setStatus('warn','WhatsApp no vinculado');
+        setStatus('on','Modo seguro: comparte desde el teléfono');
         $('btnUnlink').style.display='none';
         $('chatList').innerHTML='<div class="empty">Vincula WhatsApp para ver tus chats y grupos</div>';
       }
@@ -575,22 +576,23 @@
 
   $('btnPublish').onclick=async function(){
     if(!offerDataURL) await buildOffer();
-    var dests=selectedDests();
-    if(!dests.length) return toast('Elige al menos un destino');
-    $('sendStatus').textContent='Enviando…';
-    var res=await apiFetch('/api/publish',{ method:'POST', body: JSON.stringify({
-      agentId: DEVICE_ID, timestamp: new Date().toISOString(),
-      products:[{ name:$('prodName').value.trim(), price:$('prodPrice').value.trim(), description:$('prodDesc').value.trim(), imageBase64: offerDataURL }],
-      total:1, destinations:{ facebook:[], whatsapp: dests.map(function(d){ return /^\d{8,15}$/.test(d)?d+'@c.us':d; }) }
-    })});
-    var data=await res.json();
-    if(!res.ok || !(data.whatsapp||[]).some(function(x){return x&&x.ok;})){
-      toast((data&&data.message)||(data&&data.error)||'No se pudo enviar (límite o sesión)');
-      $('sendStatus').textContent=(data&&data.message)||'Falló el envío';
-      return;
-    }
-    toast('Oferta enviada');
-    $('sendStatus').textContent='Enviado';
+    // Modo seguro: siempre compartir nativo (el usuario elige WhatsApp)
+    var caption=[$('prodName').value.trim(),$('prodPrice').value.trim(),$('prodDesc').value.trim()].filter(Boolean).join('\n');
+    $('sendStatus').textContent='Abriendo compartir…';
+    try{
+      var blob=await (await fetch(offerDataURL)).blob();
+      var file=new File([blob],'oferta.jpg',{type:'image/jpeg'});
+      if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file], text: caption, title: 'Oferta' });
+        toast('Elige WhatsApp u otra app');
+        $('sendStatus').textContent='Comparte listo';
+        return;
+      }
+    }catch(e){ if(e&&e.name==='AbortError'){ $('sendStatus').textContent='Cancelado'; return; } }
+    // Fallback: descargar + wa.me texto
+    var a=document.createElement('a'); a.href=offerDataURL; a.download='oferta.jpg'; a.click();
+    window.location.href='https://wa.me/?text='+encodeURIComponent(caption);
+    $('sendStatus').textContent='Imagen guardada · pégala en WhatsApp';
   };
 
   $('btnPubStatus').onclick=async function(){

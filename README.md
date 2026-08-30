@@ -68,3 +68,12 @@ Ideas de uso:
 - En **Render free** el proceso se duerme: la sesión se pierde y hay que volver a vincular.
 - La única vía estable y oficial es **WhatsApp Cloud API** (número de negocio Meta).
 - Contactos: se listan los que WhatsApp sincroniza al puente; la agenda completa no siempre llega.
+
+## Modo seguro (por defecto)
+
+Sin vincular WhatsApp. Flujo:
+
+1. Crear oferta (foto + precio + detalle)
+2. **Compartir** del sistema → el usuario elige WhatsApp
+
+El puente OpenWA/Baileys queda experimental y **no se recomienda** con números personales.
