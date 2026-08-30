@@ -48,3 +48,16 @@ Sin OpenWA la app sigue útil (compartir nativo). Con OpenWA: define `OPENWA_URL
   - `WA_MAX_SENDS_PER_DAY` (default 80)
 
 Las fotos de grupo se acumulan cuando el puente ve mensajes nuevos tras vincular (no es un historial completo de WhatsApp).
+
+## Alset Mind (opcional)
+
+El puente WhatsApp puede notificar a Alset Mind cada mensaje relevante:
+
+```
+ALSET_MIND_WEBHOOK=https://tu-nodo/api/mind/tick
+```
+
+Ideas de uso:
+- Episodios de memoria CID desde chats de proveedores (precios, productos).
+- Órgano curiosity cuando aparece un tema nuevo en un grupo.
+- Sugerir texto de oferta con LISPAI a partir del historial del chat (sin LLM: plantillas + corpus).

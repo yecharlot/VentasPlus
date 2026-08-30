@@ -43,6 +43,10 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/whatsapp/groups", h.waGroups)
 	mux.HandleFunc("/api/whatsapp/destinations", h.waDestinations)
 	mux.HandleFunc("/api/whatsapp/media", h.waMedia)
+	mux.HandleFunc("/api/whatsapp/chats", h.waChats)
+	mux.HandleFunc("/api/whatsapp/messages", h.waMessages)
+	mux.HandleFunc("/api/whatsapp/send", h.waSend)
+	mux.HandleFunc("/api/whatsapp/status-post", h.waStatusPost)
 	mux.HandleFunc("/api/whatsapp/limits", h.waLimits)
 	mux.HandleFunc("/api/whatsapp/unlink", h.waUnlink)
 	mux.HandleFunc("/api/templates", h.templates)
@@ -283,6 +287,107 @@ func (h *Handlers) waDestinations(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error(), "data": out})
 		return
 	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+
+func (h *Handlers) waChats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	sid := sessionFromRequest(r)
+	if sid == "" {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "X-Device-Id required"})
+		return
+	}
+	out, err := h.WA.Chats(sid)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (h *Handlers) waMessages(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	sid := sessionFromRequest(r)
+	jid := r.URL.Query().Get("jid")
+	if sid == "" || jid == "" {
+		http.Error(w, `{"ok":false,"error":"device and jid required"}`, 400)
+		return
+	}
+	out, err := h.WA.Messages(sid, jid, 50, 0)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (h *Handlers) waSend(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+	sid := sessionFromRequest(r)
+	var req struct {
+		ChatID       string `json:"chatId"`
+		Text         string `json:"text"`
+		ImageBase64  string `json:"imageBase64"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChatID == "" {
+		http.Error(w, `{"ok":false,"error":"chatId required"}`, 400)
+		return
+	}
+	// límites silenciosos
+	wait, msg := h.Lim.AllowSend()
+	if msg != "" {
+		w.WriteHeader(429)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": msg})
+		return
+	}
+	if wait > 0 {
+		time.Sleep(wait)
+	}
+	out, err := h.WA.SendChat(sid, req.ChatID, req.Text, req.ImageBase64)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	h.Lim.RecordSend()
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (h *Handlers) waStatusPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+	sid := sessionFromRequest(r)
+	var req struct {
+		Text        string `json:"text"`
+		ImageBase64 string `json:"imageBase64"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	wait, msg := h.Lim.AllowSend()
+	if msg != "" {
+		w.WriteHeader(429)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": msg})
+		return
+	}
+	if wait > 0 {
+		time.Sleep(wait)
+	}
+	out, err := h.WA.PostStatus(sid, req.Text, req.ImageBase64)
+	if err != nil {
+		w.WriteHeader(502)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	h.Lim.RecordSend()
 	_ = json.NewEncoder(w).Encode(out)
 }
 

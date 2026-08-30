@@ -5,1039 +5,614 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#075E54" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <title>VentasPlus</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <style>
     :root {
-      --wa-teal: #075E54;
-      --wa-teal-2: #128C7E;
-      --wa-green: #25D366;
-      --wa-light: #DCF8C6;
-      --wa-bg: #0B141A;
-      --wa-panel: #111B21;
-      --wa-panel-2: #202C33;
-      --wa-border: #2A3942;
-      --wa-text: #E9EDEF;
-      --wa-muted: #8696A0;
-      --wa-blue: #53BDEB;
-      --safe-t: env(safe-area-inset-top, 0px);
-      --safe-b: env(safe-area-inset-bottom, 0px);
+      --teal: #075E54; --teal2: #128C7E; --green: #25D366;
+      --bg: #0B141A; --panel: #111B21; --panel2: #202C33; --line: #2A3942;
+      --text: #E9EDEF; --muted: #8696A0; --bubble-out: #005C4B; --bubble-in: #202C33;
+      --safe-t: env(safe-area-inset-top,0px); --safe-b: env(safe-area-inset-bottom,0px);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; height: 100%; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-      background: var(--wa-bg);
-      color: var(--wa-text);
-    }
-    /* Top bar WhatsApp-like */
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    button, input, textarea { font: inherit; color: inherit; }
     .appbar {
-      position: sticky; top: 0; z-index: 30;
-      background: var(--wa-teal);
-      padding: calc(0.65rem + var(--safe-t)) 0.75rem 0.65rem;
-      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-      box-shadow: 0 1px 0 rgba(0,0,0,.2);
+      position: sticky; top: 0; z-index: 20; background: var(--teal);
+      padding: calc(.55rem + var(--safe-t)) .75rem .55rem;
+      display: flex; align-items: center; gap: .5rem;
     }
-    .appbar h1 {
-      margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: 0.01em;
-    }
-    .appbar .sub { font-size: 0.72rem; opacity: 0.85; margin-top: 0.1rem; }
-    .appbar-actions { display: flex; gap: 0.35rem; align-items: center; }
-    .icon-btn {
+    .appbar h1 { margin: 0; font-size: 1.15rem; font-weight: 600; flex: 1; }
+    .icon {
       width: 40px; height: 40px; border: 0; border-radius: 50%;
-      background: transparent; color: #fff; font-size: 1.15rem;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
+      background: transparent; color: #fff; display: inline-flex;
+      align-items: center; justify-content: center; cursor: pointer; padding: 0;
     }
-    .icon-btn:active { background: rgba(255,255,255,.12); }
-    .btn-install {
-      border: 0; border-radius: 999px; padding: 0.4rem 0.75rem;
-      background: rgba(255,255,255,.18); color: #fff; font-weight: 600; font-size: 0.78rem;
-      min-height: 36px; cursor: pointer;
+    .icon:active { background: rgba(255,255,255,.12); }
+    .icon svg { width: 22px; height: 22px; fill: currentColor; }
+    .tabs {
+      display: flex; background: var(--teal); padding: 0 .5rem;
+      border-bottom: 1px solid rgba(0,0,0,.15);
     }
-    .btn-install.hidden { display: none !important; }
-
-    main { max-width: 480px; margin: 0 auto; padding: 0 0 calc(5.5rem + var(--safe-b)); }
-
-    /* Status chip */
-    .status-bar {
-      background: var(--wa-panel);
-      border-bottom: 1px solid var(--wa-border);
-      padding: 0.55rem 1rem;
-      font-size: 0.8rem; color: var(--wa-muted);
-      display: flex; align-items: center; gap: 0.5rem;
+    .tabs button {
+      flex: 1; border: 0; background: transparent; color: rgba(255,255,255,.7);
+      padding: .7rem .25rem; font-weight: 700; font-size: .8rem; letter-spacing: .04em;
+      border-bottom: 3px solid transparent; cursor: pointer;
     }
-    .dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #8696A0; flex-shrink: 0;
+    .tabs button.on { color: #fff; border-bottom-color: #fff; }
+    .status-line {
+      background: var(--panel); border-bottom: 1px solid var(--line);
+      padding: .45rem 1rem; font-size: .78rem; color: var(--muted);
+      display: flex; align-items: center; gap: .45rem;
     }
-    .dot.on { background: var(--wa-green); box-shadow: 0 0 0 3px rgba(37,211,102,.2); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #8696A0; }
+    .dot.on { background: var(--green); }
     .dot.warn { background: #f5c26b; }
-
-    /* List rows like chats */
-    .list { background: var(--wa-panel); }
-    .row {
-      display: flex; align-items: center; gap: 0.85rem;
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid rgba(42,57,66,.7);
-      cursor: pointer; text-align: left; width: 100%;
-      background: transparent; border-left: 0; border-right: 0; border-top: 0;
-      color: inherit; font: inherit;
+    .list { background: var(--panel); min-height: 50vh; }
+    .chat-row {
+      width: 100%; display: flex; gap: .75rem; align-items: center;
+      padding: .7rem 1rem; border: 0; border-bottom: 1px solid rgba(42,57,66,.65);
+      background: transparent; text-align: left; cursor: pointer;
     }
-    .row:active { background: var(--wa-panel-2); }
-    .avatar {
-      width: 52px; height: 52px; border-radius: 50%;
-      background: var(--wa-panel-2); display: flex; align-items: center; justify-content: center;
-      font-size: 1.35rem; flex-shrink: 0; overflow: hidden;
-      border: 1px solid var(--wa-border);
+    .chat-row:active { background: var(--panel2); }
+    .av {
+      width: 52px; height: 52px; border-radius: 50%; background: var(--panel2);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      border: 1px solid var(--line); color: var(--muted);
     }
-    .avatar.green { background: rgba(37,211,102,.15); }
-    .row-body { flex: 1; min-width: 0; }
-    .row-title { font-weight: 600; font-size: 0.98rem; margin: 0 0 0.15rem; }
-    .row-sub { margin: 0; font-size: 0.82rem; color: var(--wa-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row-meta { font-size: 0.72rem; color: var(--wa-muted); flex-shrink: 0; }
-
-    .section-label {
-      padding: 0.65rem 1rem 0.35rem;
-      font-size: 0.75rem; font-weight: 700; color: var(--wa-teal-2);
-      text-transform: uppercase; letter-spacing: 0.04em;
-      background: var(--wa-bg);
-    }
-
-    .card-soft {
-      margin: 0.75rem 1rem;
-      background: var(--wa-panel);
-      border-radius: 12px;
-      border: 1px solid var(--wa-border);
-      padding: 0.9rem;
-    }
-    .card-soft h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
-    .muted { color: var(--wa-muted); font-size: 0.85rem; line-height: 1.45; margin: 0; }
-
-    label { display: block; font-size: 0.75rem; color: var(--wa-muted); margin: 0.55rem 0 0.3rem; font-weight: 600; }
-    input, textarea, select {
-      width: 100%; background: var(--wa-panel-2); border: 1px solid var(--wa-border);
-      color: var(--wa-text); border-radius: 10px; padding: 0.75rem 0.85rem; font-size: 16px;
-    }
-    textarea { min-height: 80px; }
-
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-      min-height: 48px; width: 100%; padding: 0.7rem 1rem;
-      border: 0; border-radius: 24px; font-weight: 700; font-size: 0.95rem;
-      cursor: pointer; touch-action: manipulation;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary { background: var(--wa-teal-2); color: #fff; }
-    .btn-wa { background: var(--wa-green); color: #054c22; }
-    .btn-ghost {
-      background: transparent; color: var(--wa-muted); border: 1px solid var(--wa-border);
-      border-radius: 24px; min-height: 44px;
-    }
-    .stack { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.65rem; }
-
-    /* FAB */
+    .av svg { width: 26px; height: 26px; fill: currentColor; }
+    .chat-row .t { font-weight: 600; font-size: .97rem; margin: 0 0 .12rem; }
+    .chat-row .s { margin: 0; font-size: .8rem; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62vw; }
+    .chat-row .meta { margin-left: auto; font-size: .7rem; color: var(--muted); flex-shrink: 0; }
     .fab {
-      position: fixed; right: 1rem; bottom: calc(1.25rem + var(--safe-b));
-      width: 60px; height: 60px; border-radius: 50%; border: 0;
-      background: var(--wa-teal-2); color: #fff; font-size: 1.75rem;
-      z-index: 40; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      position: fixed; right: 1rem; bottom: calc(1.15rem + var(--safe-b));
+      width: 58px; height: 58px; border-radius: 50%; border: 0;
+      background: var(--teal2); color: #fff; z-index: 30;
+      box-shadow: 0 6px 20px rgba(0,0,0,.4);
       display: flex; align-items: center; justify-content: center;
     }
-
-    /* Full screen sheet */
+    .fab svg { width: 26px; height: 26px; fill: currentColor; }
     .sheet {
-      position: fixed; inset: 0; z-index: 50; background: var(--wa-bg);
+      position: fixed; inset: 0; z-index: 40; background: var(--bg);
       display: none; flex-direction: column;
     }
     .sheet.open { display: flex; }
     .sheet-bar {
-      background: var(--wa-teal);
-      padding: calc(0.55rem + var(--safe-t)) 0.5rem 0.55rem;
-      display: flex; align-items: center; gap: 0.35rem;
+      background: var(--teal); padding: calc(.5rem + var(--safe-t)) .4rem .5rem;
+      display: flex; align-items: center; gap: .25rem;
     }
-    .sheet-bar strong { flex: 1; font-size: 1.05rem; }
-    .sheet-body {
-      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-      padding: 0.85rem 1rem calc(1.25rem + var(--safe-b));
+    .sheet-bar .title { flex: 1; font-weight: 600; font-size: 1.05rem; min-width: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .msgs {
+      flex: 1; overflow-y: auto; padding: .75rem .7rem calc(.5rem + var(--safe-b));
+      background: #0b141a url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='%230b141a'/%3E%3Cpath d='M30 5l2 8h8l-6 5 2 8-6-5-6 5 2-8-6-5h8z' fill='%23111b21' opacity='.5'/%3E%3C/svg%3E");
+      display: flex; flex-direction: column; gap: .35rem;
     }
-    .progress {
-      display: flex; gap: 0.3rem; margin-bottom: 0.85rem;
+    .bubble {
+      max-width: 82%; padding: .45rem .6rem .35rem; border-radius: 8px;
+      font-size: .95rem; line-height: 1.35; position: relative;
     }
-    .progress span {
-      flex: 1; text-align: center; font-size: 0.7rem; padding: 0.35rem;
-      border-radius: 999px; background: var(--wa-panel-2); color: var(--wa-muted); font-weight: 600;
+    .bubble.in { align-self: flex-start; background: var(--bubble-in); border-top-left-radius: 0; }
+    .bubble.out { align-self: flex-end; background: var(--bubble-out); border-top-right-radius: 0; }
+    .bubble img { max-width: 100%; border-radius: 6px; display: block; margin-bottom: .25rem; }
+    .bubble .time { font-size: .65rem; color: rgba(255,255,255,.45); text-align: right; margin-top: .15rem; }
+    .composer {
+      display: flex; gap: .4rem; align-items: flex-end;
+      padding: .45rem .55rem calc(.45rem + var(--safe-b));
+      background: var(--panel); border-top: 1px solid var(--line);
     }
-    .progress span.on { background: rgba(18,140,126,.35); color: var(--wa-green); }
-
-    .stage { background: #000; border-radius: 12px; overflow: hidden; margin: 0.45rem 0; }
-    .stage canvas { width: 100%; display: block; max-height: 42vh; object-fit: contain; touch-action: none; }
-
-    .offer-frame {
-      border-radius: 12px; overflow: hidden; margin: 0.5rem 0;
-      border: 1px solid var(--wa-border);
+    .composer input {
+      flex: 1; border: 0; background: var(--panel2); border-radius: 22px;
+      padding: .7rem 1rem; font-size: 16px; outline: none;
     }
-    .offer-frame img { width: 100%; display: block; }
-
-    .code-box {
-      margin-top: 0.75rem; padding: 1rem;
-      background: var(--wa-panel-2); border-radius: 12px;
-      text-align: center; letter-spacing: 0.25em;
-      font-size: 1.6rem; font-weight: 800; color: var(--wa-green);
-      font-family: ui-monospace, monospace;
+    .composer .send {
+      width: 46px; height: 46px; border-radius: 50%; border: 0;
+      background: var(--teal2); color: #fff; display: flex; align-items: center; justify-content: center;
     }
-
+    .composer .send svg { width: 20px; height: 20px; fill: currentColor; }
+    .pad { padding: 1rem; }
+    label { display: block; font-size: .75rem; color: var(--muted); margin: .55rem 0 .3rem; font-weight: 600; }
+    input.field, textarea.field, select.field {
+      width: 100%; background: var(--panel2); border: 1px solid var(--line);
+      border-radius: 10px; padding: .75rem .85rem; font-size: 16px;
+    }
+    textarea.field { min-height: 80px; }
+    .btn {
+      width: 100%; min-height: 48px; border: 0; border-radius: 24px;
+      font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+    }
+    .btn-green { background: var(--green); color: #054c22; }
+    .btn-teal { background: var(--teal2); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    .stack { display: flex; flex-direction: column; gap: .55rem; margin-top: .65rem; }
+    .code {
+      margin-top: .75rem; padding: 1rem; text-align: center; letter-spacing: .22em;
+      font-size: 1.55rem; font-weight: 800; color: var(--green); background: var(--panel2);
+      border-radius: 12px; font-family: ui-monospace, monospace;
+    }
     .toast {
-      position: fixed; left: 50%; transform: translateX(-50%);
-      bottom: calc(5.5rem + var(--safe-b));
-      background: var(--wa-panel-2); border: 1px solid var(--wa-border);
-      padding: 0.65rem 1.1rem; border-radius: 8px; font-size: 0.85rem;
-      z-index: 60; display: none; max-width: 90%; text-align: center;
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(5rem + var(--safe-b));
+      background: var(--panel2); border: 1px solid var(--line); padding: .6rem 1rem;
+      border-radius: 8px; font-size: .85rem; z-index: 80; display: none; max-width: 92%; text-align: center;
     }
     .toast.show { display: block; }
     .hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
-    .ok { color: var(--wa-green); }
-    .warn { color: #f5c26b; }
-
-    #inboxGrid {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; margin-top: 0.5rem;
-      background: var(--wa-border);
+    .stage { background: #000; border-radius: 12px; overflow: hidden; margin: .4rem 0; }
+    .stage canvas { width: 100%; max-height: 40vh; display: block; touch-action: none; }
+    .offer img { width: 100%; display: block; border-radius: 12px; }
+    .use-offer {
+      margin-top: .25rem; border: 0; background: rgba(37,211,102,.2); color: var(--green);
+      border-radius: 6px; padding: .25rem .5rem; font-size: .75rem; font-weight: 700; cursor: pointer;
     }
-    #inboxGrid button {
-      padding: 0; min-height: 0; border-radius: 0; border: 0; background: #000;
+    .empty { padding: 2rem 1.25rem; text-align: center; color: var(--muted); font-size: .9rem; }
+    .search {
+      margin: .5rem .75rem; background: var(--panel2); border-radius: 10px;
+      display: flex; align-items: center; gap: .4rem; padding: .35rem .65rem;
     }
-    #inboxGrid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .search input { flex: 1; border: 0; background: transparent; outline: none; font-size: 16px; padding: .4rem 0; }
+    .search svg { width: 18px; height: 18px; fill: var(--muted); flex-shrink: 0; }
   </style>
 </head>
 <body>
-  <header class="appbar">
-    <div>
+  <div id="viewMain">
+    <header class="appbar">
       <h1>VentasPlus</h1>
-      <div class="sub" id="appSub">Ofertas para WhatsApp</div>
+      <button type="button" class="icon" id="btnLink" title="Vincular" aria-label="Vincular">
+        <svg viewBox="0 0 24 24"><path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8z"/></svg>
+      </button>
+      <button type="button" class="icon" id="btnRefresh" title="Actualizar" aria-label="Actualizar">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 0 0-8 8h2a6 6 0 0 1 9.9-4.6L12 11h8V3l-2.35 3.35zM12 20a8 8 0 0 0 8-8h-2a6 6 0 0 1-9.9 4.6L12 13H4v8l2.35-3.35A7.95 7.95 0 0 0 12 20z"/></svg>
+      </button>
+    </header>
+    <div class="tabs">
+      <button type="button" class="on" data-tab="chats">CHATS</button>
+      <button type="button" data-tab="tools">OFERTAS</button>
     </div>
-    <div class="appbar-actions">
-      <button type="button" class="btn-install hidden" id="btnInstallHdr">Instalar</button>
-      <button type="button" class="icon-btn" id="btnRefresh" title="Actualizar">⟳</button>
-    </div>
-  </header>
+    <div class="status-line"><span class="dot" id="dot"></span><span id="statusText">Comprobando…</span></div>
 
-  <div class="status-bar">
-    <span class="dot" id="statusDot"></span>
-    <span id="statusText">Comprobando conexión…</span>
+    <div id="tabChats">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="chatFilter" placeholder="Buscar…" autocomplete="off" />
+      </div>
+      <div class="list" id="chatList"><div class="empty">Vincula WhatsApp para ver chats y grupos</div></div>
+    </div>
+
+    <div id="tabTools" style="display:none">
+      <div class="list">
+        <button type="button" class="chat-row" id="btnNewOffer">
+          <div class="av"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+          <div><p class="t">Nueva oferta</p><p class="s">Foto → precio → enviar</p></div>
+        </button>
+        <button type="button" class="chat-row" id="btnStatus">
+          <div class="av"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6zm0-8h2V7h-2v2z"/></svg></div>
+          <div><p class="t">Publicar en estado</p><p class="s">Estado de WhatsApp</p></div>
+        </button>
+      </div>
+      <p class="empty" id="deviceLabel" style="padding-top:.5rem"></p>
+    </div>
   </div>
 
-  <main>
-    <div class="section-label">WhatsApp</div>
-    <div class="list">
-      <button type="button" class="row" id="rowConnect">
-        <div class="avatar green">🔗</div>
-        <div class="row-body">
-          <p class="row-title">Vincular WhatsApp</p>
-          <p class="row-sub" id="rowConnectSub">Conecta este teléfono con un código</p>
-        </div>
-        <span class="row-meta" id="rowConnectMeta">›</span>
-      </button>
-      <button type="button" class="row" id="rowInbox">
-        <div class="avatar">🖼️</div>
-        <div class="row-body">
-          <p class="row-title">Fotos de grupos</p>
-          <p class="row-sub">Elige una foto y arma la oferta</p>
-        </div>
-        <span class="row-meta">›</span>
-      </button>
-      <button type="button" class="row" id="rowNew">
-        <div class="avatar green">📷</div>
-        <div class="row-body">
-          <p class="row-title">Nueva oferta</p>
-          <p class="row-sub">Cámara o galería → publicar</p>
-        </div>
-        <span class="row-meta">›</span>
-      </button>
-    </div>
-
-    <div class="section-label">Más</div>
-    <div class="list">
-      <button type="button" class="row" id="rowHistory">
-        <div class="avatar">🕘</div>
-        <div class="row-body">
-          <p class="row-title">Historial</p>
-          <p class="row-sub">Últimas publicaciones</p>
-        </div>
-        <span class="row-meta">›</span>
-      </button>
-      <button type="button" class="row" id="rowLimits">
-        <div class="avatar">🛡️</div>
-        <div class="row-body">
-          <p class="row-title">Límites de envío</p>
-          <p class="row-sub" id="limitsPreview">Para cuidar tu cuenta</p>
-        </div>
-        <span class="row-meta">›</span>
-      </button>
-    </div>
-
-    <div class="card-soft">
-      <h3>Última acción</h3>
-      <p class="muted" id="lastResult">Aún no has publicado.</p>
-      <p class="muted" id="deviceLabel" style="margin-top:0.45rem;font-size:0.72rem"></p>
-    </div>
-  </main>
-
-  <button type="button" class="fab" id="fab" aria-label="Nueva oferta">+</button>
+  <button type="button" class="fab" id="fab" aria-label="Nueva oferta">
+    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+  </button>
   <div class="toast" id="toast"></div>
   <input type="file" id="inputCamera" class="hidden" accept="image/*" capture="environment" />
   <input type="file" id="inputGallery" class="hidden" accept="image/*" />
 
-  <!-- Sheet: Conectar -->
-  <div class="sheet" id="sheetConnect">
+  <!-- Chat view -->
+  <div class="sheet" id="sheetChat">
     <div class="sheet-bar">
-      <button type="button" class="icon-btn" id="closeConnect">←</button>
-      <strong>Vincular WhatsApp</strong>
+      <button type="button" class="icon" id="closeChat" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+      <div class="title" id="chatTitle">Chat</div>
+      <button type="button" class="icon" id="btnChatOffer" title="Oferta" aria-label="Oferta"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
     </div>
-    <div class="sheet-body">
-      <p class="muted">Como WhatsApp Web, pero con <strong style="color:#e9edef">código</strong> (sin escanear QR).</p>
-      <ol class="muted" style="padding-left:1.2rem;line-height:1.55;margin:0.75rem 0">
-        <li>Escribe el número de <strong style="color:#e9edef">este</strong> WhatsApp (con código de país).</li>
-        <li>Pulsa <strong style="color:#e9edef">Obtener código</strong>.</li>
-        <li>En el teléfono: WhatsApp → Dispositivos vinculados → Vincular → <strong style="color:#e9edef">Vincular con número</strong>.</li>
-        <li>Escribe el código de 8 caracteres.</li>
-      </ol>
-      <label>Número (ej. 56912345678)</label>
-      <input id="pairPhone" inputmode="tel" autocomplete="tel" placeholder="56912345678" />
-      <div class="stack">
-        <button type="button" class="btn btn-wa" id="btnPairCode">Obtener código</button>
-        <button type="button" class="btn btn-ghost" id="btnUnlinkWA" style="display:none">Desvincular este teléfono</button>
-      </div>
-      <div class="code-box" id="pairResult" style="display:none"></div>
-      <p class="muted" id="pairHint" style="margin-top:0.75rem"></p>
+    <div class="msgs" id="msgList"></div>
+    <div class="composer">
+      <input id="msgInput" placeholder="Mensaje" autocomplete="off" />
+      <button type="button" class="send" id="btnSendMsg" aria-label="Enviar"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
     </div>
   </div>
 
-  <!-- Sheet: Inbox -->
-  <div class="sheet" id="sheetInbox">
+  <!-- Link -->
+  <div class="sheet" id="sheetLink">
     <div class="sheet-bar">
-      <button type="button" class="icon-btn" id="closeInbox">←</button>
-      <strong>Fotos de grupos</strong>
+      <button type="button" class="icon" id="closeLink" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+      <div class="title">Vincular WhatsApp</div>
     </div>
-    <div class="sheet-body">
-      <label>Grupo</label>
-      <select id="inboxGroup"><option value="">— Elige grupo —</option></select>
+    <div class="sheet-body pad">
+      <p style="color:var(--muted);font-size:.9rem;line-height:1.45;margin:0 0 .75rem">
+        En el teléfono: WhatsApp → Dispositivos vinculados → Vincular → <strong style="color:var(--text)">Vincular con número</strong>.
+      </p>
+      <label>Número (código de país)</label>
+      <input class="field" id="pairPhone" inputmode="tel" placeholder="56912345678" />
       <div class="stack">
-        <button type="button" class="btn btn-primary" id="btnLoadMedia">Ver fotos</button>
+        <button type="button" class="btn btn-green" id="btnPair">Obtener código</button>
+        <button type="button" class="btn btn-ghost" id="btnUnlink" style="display:none">Desvincular este teléfono</button>
       </div>
-      <p class="muted" id="inboxNote" style="margin-top:0.55rem"></p>
-      <div id="inboxGrid"></div>
+      <div class="code" id="pairCode" style="display:none"></div>
+      <p id="pairHint" style="color:var(--muted);font-size:.85rem;margin-top:.75rem"></p>
     </div>
   </div>
 
-  <!-- Sheet: Nueva oferta -->
+  <!-- Offer -->
   <div class="sheet" id="sheetOffer">
     <div class="sheet-bar">
-      <button type="button" class="icon-btn" id="closeOffer">←</button>
-      <strong id="sheetTitle">Nueva oferta</strong>
+      <button type="button" class="icon" id="closeOffer" aria-label="Volver"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+      <div class="title" id="offerTitle">Nueva oferta</div>
     </div>
-    <div class="sheet-body">
-      <div class="progress">
-        <span id="st1" class="on">1 Foto</span>
-        <span id="st2">2 Datos</span>
-        <span id="st3">3 Enviar</span>
-      </div>
-
-      <div id="stepPhoto">
-        <p class="muted">¿Cómo quieres agregar la foto?</p>
+    <div class="sheet-body pad">
+      <div id="oPhoto">
         <div class="stack">
-          <button type="button" class="btn btn-primary" id="btnCamera">Tomar foto</button>
-          <button type="button" class="btn btn-wa" id="btnGallery">Elegir de galería</button>
+          <button type="button" class="btn btn-teal" id="btnCam">Tomar foto</button>
+          <button type="button" class="btn btn-green" id="btnGal">Galería</button>
         </div>
-        <div id="editBlock" style="display:none;margin-top:0.85rem">
-          <p class="muted">Opcional: recorta o pon texto sobre la foto.</p>
+        <div id="editBlock" style="display:none;margin-top:.75rem">
           <div class="stage"><canvas id="cropCanvas"></canvas></div>
           <label>Texto en la foto</label>
-          <input id="overlayText" placeholder="Solo hoy" />
+          <input class="field" id="overlayText" placeholder="Opcional" />
           <div class="stack">
             <button type="button" class="btn btn-ghost" id="btnApplyText">Poner texto</button>
-            <button type="button" class="btn btn-ghost" id="btnResetCrop">Quitar recorte</button>
-            <button type="button" class="btn btn-wa" id="btnToData">Siguiente</button>
+            <button type="button" class="btn btn-green" id="btnToData">Siguiente</button>
           </div>
         </div>
       </div>
-
-      <div id="stepData" style="display:none">
-        <label>Nombre</label>
-        <input id="prodName" placeholder="Producto" />
-        <label>Precio</label>
-        <input id="prodPrice" placeholder="$49.990" inputmode="decimal" />
-        <label>Detalle</label>
-        <textarea id="prodDesc" placeholder="Tallas, color…"></textarea>
-        <label>Plantilla</label>
-        <select id="tplSelect"><option value="">— Sin plantilla —</option></select>
+      <div id="oData" style="display:none">
+        <label>Nombre</label><input class="field" id="prodName" />
+        <label>Precio</label><input class="field" id="prodPrice" inputmode="decimal" />
+        <label>Detalle</label><textarea class="field" id="prodDesc"></textarea>
         <div class="stack">
-          <button type="button" class="btn btn-wa" id="btnToSend">Ver publicación</button>
+          <button type="button" class="btn btn-green" id="btnToSend">Continuar</button>
           <button type="button" class="btn btn-ghost" id="btnBackPhoto">Volver</button>
         </div>
       </div>
-
-      <div id="stepSend" style="display:none">
-        <p class="muted">Así se verá tu oferta</p>
-        <div class="offer-frame"><img id="offerPreview" alt="Oferta" /></div>
-        <div id="openwaBox" style="display:none">
-          <label>Buscar destino</label>
-          <input id="waDestFilter" placeholder="Filtrar…" />
-          <label>Grupos y contactos (puedes varios)</label>
-          <select id="waDestSelect" multiple size="6"></select>
-          <label>Número manual (opcional)</label>
-          <input id="waDest" placeholder="569…" />
-          <button type="button" class="btn btn-ghost" id="btnReloadDest" style="margin-top:0.5rem">Actualizar lista</button>
-        </div>
+      <div id="oSend" style="display:none">
+        <div class="offer"><img id="offerPreview" alt="" /></div>
+        <label>Destino (opcional si envías desde un chat)</label>
+        <select class="field" id="waDestSelect" multiple size="5"></select>
+        <input class="field" id="waDest" placeholder="Número manual" style="margin-top:.4rem" />
         <div class="stack">
-          <button type="button" class="btn btn-wa" id="btnSendWA">Enviar por WhatsApp</button>
-          <button type="button" class="btn btn-primary" id="btnShareOther">Compartir…</button>
-          <button type="button" class="btn btn-ghost" id="btnDownload">Guardar imagen</button>
-          <button type="button" class="btn btn-ghost" id="btnBackData">Editar datos</button>
+          <button type="button" class="btn btn-green" id="btnPublish">Enviar oferta</button>
+          <button type="button" class="btn btn-teal" id="btnPubStatus">Publicar en estado</button>
+          <button type="button" class="btn btn-ghost" id="btnShare">Compartir…</button>
+          <button type="button" class="btn btn-ghost" id="btnBackData">Volver</button>
         </div>
-        <p class="muted" id="sendStatus" style="margin-top:0.65rem"></p>
+        <p id="sendStatus" style="color:var(--muted);font-size:.85rem;margin-top:.6rem"></p>
       </div>
-    </div>
-  </div>
-
-  <!-- Sheet: historial / límites -->
-  <div class="sheet" id="sheetInfo">
-    <div class="sheet-bar">
-      <button type="button" class="icon-btn" id="closeInfo">←</button>
-      <strong id="infoTitle">Info</strong>
-    </div>
-    <div class="sheet-body">
-      <div id="infoBody" class="muted"></div>
     </div>
   </div>
 
 <script>
-(function () {
-  var $ = function (id) { return document.getElementById(id); };
-  var toast = function (msg) {
-    var t = $('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(t._t);
-    t._t = setTimeout(function () { t.classList.remove('show'); }, 3200);
-  };
-
-  var API_BASE = (localStorage.getItem('vp_api_base') || 'https://ventasplus-api.onrender.com').replace(/\/$/, '');
-  function getDeviceId() {
-    var k = 'vp_device_id';
-    var id = localStorage.getItem(k);
-    if (!id) {
-      id = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      localStorage.setItem(k, id);
-    }
-    return id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = function(m){ var t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(function(){ t.classList.remove('show'); }, 3200); };
+  var API_BASE = (localStorage.getItem('vp_api_base')||'https://ventasplus-api.onrender.com').replace(/\/$/,'');
+  function getDeviceId(){
+    var k='vp_device_id', id=localStorage.getItem(k);
+    if(!id){ id='d'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem(k,id); }
+    return id.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64);
   }
   var DEVICE_ID = getDeviceId();
-  function apiFetch(path, opts) {
-    opts = opts || {};
-    var headers = Object.assign({}, opts.headers || {});
-    headers['X-Device-Id'] = DEVICE_ID;
-    if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    opts.headers = headers;
-    return fetch(API_BASE + path, opts);
+  function apiFetch(path, opts){
+    opts=opts||{}; var h=Object.assign({}, opts.headers||{});
+    h['X-Device-Id']=DEVICE_ID;
+    if(opts.body && !h['Content-Type']) h['Content-Type']='application/json';
+    opts.headers=h;
+    return fetch(API_BASE+path, opts);
   }
+  $('deviceLabel').textContent = 'Dispositivo '+DEVICE_ID.slice(0,12)+'…';
 
-  $('deviceLabel').textContent = 'Dispositivo: ' + DEVICE_ID.slice(0, 14) + '…';
+  var linked=false, chats=[], currentJid=null, currentName='';
+  var sourceImg=null, cropRect=null, dragging=false, startX=0, startY=0;
+  var productPhotoDataURL=null, offerDataURL=null, offerTargetJid=null;
 
-  var openwaReady = false;
-  var sourceImg = null, cropRect = null, dragging = false, startX = 0, startY = 0;
-  var productPhotoDataURL = null, offerDataURL = null;
-
-  function openSheet(id) { $(id).classList.add('open'); }
-  function closeSheet(id) { $(id).classList.remove('open'); }
-
-  function setStatus(kind, text) {
-    var d = $('statusDot');
-    d.className = 'dot' + (kind === 'on' ? ' on' : kind === 'warn' ? ' warn' : '');
-    $('statusText').textContent = text;
+  function setStatus(kind, text){
+    $('dot').className='dot'+(kind==='on'?' on':kind==='warn'?' warn':'');
+    $('statusText').textContent=text;
   }
+  function openSheet(id){ $(id).classList.add('open'); }
+  function closeSheet(id){ $(id).classList.remove('open'); }
 
-  // Navigation
-  $('fab').onclick = function () { openOffer(); };
-  $('rowNew').onclick = function () { openOffer(); };
-  $('rowConnect').onclick = function () { openSheet('sheetConnect'); };
-  $('rowInbox').onclick = function () { fillInboxGroups(); openSheet('sheetInbox'); };
-  $('closeConnect').onclick = function () { closeSheet('sheetConnect'); };
-  $('closeInbox').onclick = function () { closeSheet('sheetInbox'); };
-  $('closeOffer').onclick = function () { closeSheet('sheetOffer'); };
-  $('closeInfo').onclick = function () { closeSheet('sheetInfo'); };
-  $('btnRefresh').onclick = function () { refreshAll(); toast('Actualizado'); };
+  // Tabs
+  document.querySelectorAll('.tabs button').forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll('.tabs button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      var tab=b.getAttribute('data-tab');
+      $('tabChats').style.display = tab==='chats'?'block':'none';
+      $('tabTools').style.display = tab==='tools'?'block':'none';
+    };
+  });
 
-  $('rowHistory').onclick = function () {
-    $('infoTitle').textContent = 'Historial';
-    $('infoBody').textContent = 'Cargando…';
-    openSheet('sheetInfo');
-    apiFetch('/api/publications').then(function (r) { return r.json(); }).then(function (data) {
-      var items = [];
-      if (data && data.data) {
-        if (Array.isArray(data.data)) items = data.data;
-        else if (data.data.items) items = data.data.items;
-        else if (data.data.publications) items = data.data.publications;
-      }
-      $('infoBody').innerHTML = items.length
-        ? items.slice(0, 20).map(function (it) {
-            var n = (it.products && it.products[0] && it.products[0].name) || it.id || 'Publicación';
-            return '· ' + n;
-          }).join('<br/>')
-        : 'Sin publicaciones aún.';
-    }).catch(function () { $('infoBody').textContent = 'No se pudo cargar.'; });
-  };
-  $('rowLimits').onclick = function () {
-    $('infoTitle').textContent = 'Límites de envío';
-    $('infoBody').textContent = 'Cargando…';
-    openSheet('sheetInfo');
-    apiFetch('/api/whatsapp/limits').then(function (r) { return r.json(); }).then(function (data) {
-      var L = (data && data.limits) || {};
-      $('infoBody').innerHTML =
-        'Máximo <strong style="color:#e9edef">' + (L.maxDestinations || 5) + '</strong> destinos por envío<br/>' +
-        'Pausa de <strong style="color:#e9edef">' + (L.minDelayMs || 3500) + ' ms</strong> entre mensajes<br/>' +
-        'Hasta <strong style="color:#e9edef">' + (L.maxPerHour || 25) + '</strong> por hora y <strong style="color:#e9edef">' + (L.maxPerDay || 80) + '</strong> al día<br/><br/>' +
-        'Hoy: ' + (L.sendsLastDay || 0) + ' · Última hora: ' + (L.sendsLastHour || 0);
-      $('limitsPreview').textContent = (L.sendsLastHour || 0) + '/' + (L.maxPerHour || 25) + ' esta hora';
-    }).catch(function () { $('infoBody').textContent = 'No se pudo cargar.'; });
-  };
+  $('btnLink').onclick=function(){ openSheet('sheetLink'); };
+  $('closeLink').onclick=function(){ closeSheet('sheetLink'); };
+  $('btnRefresh').onclick=function(){ refreshAll(); toast('Actualizado'); };
+  $('fab').onclick=$('btnNewOffer').onclick=function(){ offerTargetJid=null; openOffer(); };
+  $('closeOffer').onclick=function(){ closeSheet('sheetOffer'); };
+  $('closeChat').onclick=function(){ closeSheet('sheetChat'); currentJid=null; };
 
-  function openOffer() {
-    showStep('photo');
-    openSheet('sheetOffer');
-  }
-  function setProgress(n) {
-    $('st1').className = n >= 1 ? 'on' : '';
-    $('st2').className = n >= 2 ? 'on' : '';
-    $('st3').className = n >= 3 ? 'on' : '';
-  }
-  function showStep(name) {
-    $('stepPhoto').style.display = name === 'photo' ? 'block' : 'none';
-    $('stepData').style.display = name === 'data' ? 'block' : 'none';
-    $('stepSend').style.display = name === 'send' ? 'block' : 'none';
-    if (name === 'photo') { setProgress(1); $('sheetTitle').textContent = 'Foto'; }
-    if (name === 'data') { setProgress(2); $('sheetTitle').textContent = 'Datos'; }
-    if (name === 'send') { setProgress(3); $('sheetTitle').textContent = 'Enviar'; }
-  }
-
-  // Connect
-  function refreshWA() {
-    apiFetch('/api/v1/info').then(function (r) { return r.json(); }).then(function (info) {
-      if (info.openwa_connected) {
-        openwaReady = true;
-        setStatus('on', 'WhatsApp vinculado en este teléfono');
-        $('rowConnectSub').textContent = 'Conectado · tocar para gestionar';
-        $('rowConnectMeta').textContent = 'OK';
-        $('btnUnlinkWA').style.display = 'flex';
-        $('pairHint').innerHTML = '<span class="ok">Vinculado correctamente.</span>';
-        $('openwaBox').style.display = 'block';
-        loadDestinations();
-        fillInboxGroups();
+  function refreshAll(){
+    apiFetch('/api/v1/info').then(function(r){ return r.json(); }).then(function(info){
+      linked = !!info.openwa_connected;
+      if(linked){
+        setStatus('on','Conectado');
+        $('btnUnlink').style.display='flex';
+        loadChats();
       } else {
-        openwaReady = false;
-        setStatus('warn', 'WhatsApp no vinculado en este teléfono');
-        $('rowConnectSub').textContent = 'Conecta este teléfono con un código';
-        $('rowConnectMeta').textContent = '›';
-        $('btnUnlinkWA').style.display = 'none';
-        $('openwaBox').style.display = 'none';
+        setStatus('warn','WhatsApp no vinculado');
+        $('btnUnlink').style.display='none';
+        $('chatList').innerHTML='<div class="empty">Vincula WhatsApp para ver tus chats y grupos</div>';
       }
-    }).catch(function (err) {
-      setStatus('', 'No se pudo contactar la API');
-      $('rowConnectSub').textContent = 'Error de red · reintenta';
-      console.warn(err);
-    });
+    }).catch(function(){ setStatus('','Sin conexión con el servidor'); });
   }
 
-  $('btnPairCode').onclick = function () {
-    var phone = ($('pairPhone').value || '').replace(/\D/g, '');
-    if (phone.length < 10) return toast('Número con código de país');
-    $('btnPairCode').disabled = true;
-    $('pairResult').style.display = 'none';
-    $('pairHint').textContent = 'Generando código…';
-    apiFetch('/api/whatsapp/pairing-code', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: phone }),
-    }).then(function (r) { return r.json(); }).then(function (data) {
-      $('btnPairCode').disabled = false;
-      if (data.pairingCode) {
-        $('pairResult').style.display = 'block';
-        $('pairResult').textContent = data.pairingCode;
-        $('pairHint').textContent = 'Escríbelo ya en WhatsApp (caduca pronto).';
-        toast('Código listo');
-        var tries = 0;
-        var t = setInterval(function () {
-          tries++;
-          refreshWA();
-          if (openwaReady || tries > 40) clearInterval(t);
-        }, 3000);
-      } else {
-        $('pairHint').textContent = data.error || 'No se pudo generar el código';
-        toast('Error al generar código');
-      }
-    }).catch(function () {
-      $('btnPairCode').disabled = false;
-      $('pairHint').textContent = 'No se pudo contactar la API. Revisa la red o reintenta.';
-      toast('Error de conexión');
-    });
-  };
-
-  $('btnUnlinkWA').onclick = function () {
-    if (!confirm('¿Desvincular WhatsApp solo en este teléfono?')) return;
-    apiFetch('/api/whatsapp/unlink', { method: 'POST', body: '{}' })
-      .then(function () { openwaReady = false; toast('Desvinculado'); refreshWA(); })
-      .catch(function () { toast('No se pudo desvincular'); });
-  };
-
-  // Destinations
-  function loadDestinations() {
-    var sel = $('waDestSelect');
-    if (!sel) return;
-    sel.innerHTML = '';
-    apiFetch('/api/whatsapp/destinations').then(function (r) { return r.json(); }).then(function (data) {
-      if (!data || !data.ok) {
-        sel.innerHTML = '<option value="">No disponible</option>';
-        return;
-      }
-      var filter = (($('waDestFilter') && $('waDestFilter').value) || '').toLowerCase();
-      var html = '';
-      (data.groups || []).forEach(function (g) {
-        var label = g.name || g.id;
-        if (filter && label.toLowerCase().indexOf(filter) < 0) return;
-        html += '<option value="' + String(g.id).replace(/"/g, '') + '">👥 ' + label.replace(/</g, '') + '</option>';
-      });
-      (data.contacts || []).forEach(function (c) {
-        var label = c.name || c.id;
-        if (filter && label.toLowerCase().indexOf(filter) < 0) return;
-        html += '<option value="' + String(c.id).replace(/"/g, '') + '">👤 ' + label.replace(/</g, '') + '</option>';
-      });
-      sel.innerHTML = html || '<option value="">Sin resultados</option>';
-    }).catch(function () { sel.innerHTML = '<option value="">Error</option>'; });
-  }
-  $('btnReloadDest').onclick = function () { loadDestinations(); };
-  var _ft;
-  $('waDestFilter').oninput = function () {
-    clearTimeout(_ft);
-    _ft = setTimeout(loadDestinations, 250);
-  };
-
-  function fillInboxGroups() {
-    apiFetch('/api/whatsapp/destinations').then(function (r) { return r.json(); }).then(function (data) {
-      var groups = (data && data.groups) || [];
-      var h = '<option value="">— Elige grupo —</option>';
-      groups.forEach(function (g) {
-        h += '<option value="' + String(g.id).replace(/"/g, '') + '">' + String(g.name || g.id).replace(/</g, '') + '</option>';
-      });
-      $('inboxGroup').innerHTML = h;
-    }).catch(function () {});
-  }
-  $('btnLoadMedia').onclick = function () {
-    var jid = $('inboxGroup').value;
-    if (!jid) return toast('Elige un grupo');
-    $('inboxNote').textContent = 'Cargando…';
-    $('inboxGrid').innerHTML = '';
-    apiFetch('/api/whatsapp/media?jid=' + encodeURIComponent(jid) + '&limit=30')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var items = (data && data.items) || [];
-        $('inboxNote').textContent = data.note || (items.length + ' fotos');
-        items.forEach(function (it) {
-          if (!it.dataUrl) return;
-          var btn = document.createElement('button');
-          btn.type = 'button';
-          btn.innerHTML = '<img src="' + it.dataUrl + '" alt=""/>';
-          btn.onclick = function () {
-            productPhotoDataURL = it.dataUrl;
-            loadSource(it.dataUrl);
-            if (it.caption) $('prodDesc').value = it.caption;
-            closeSheet('sheetInbox');
-            openOffer();
-            setTimeout(function () { bakeProductPhoto(); showStep('data'); }, 250);
-            toast('Foto lista');
-          };
-          $('inboxGrid').appendChild(btn);
-        });
-      })
-      .catch(function () { $('inboxNote').textContent = 'Error al cargar'; });
-  };
-
-  // Photo flow
-  $('btnCamera').onclick = function () { $('inputCamera').click(); };
-  $('btnGallery').onclick = function () { $('inputGallery').click(); };
-  function onFile(input) {
-    var f = input.files && input.files[0];
-    if (!f) return;
-    var reader = new FileReader();
-    reader.onload = function () { loadSource(reader.result); };
-    reader.readAsDataURL(f);
-    input.value = '';
-  }
-  $('inputCamera').onchange = function () { onFile(this); };
-  $('inputGallery').onchange = function () { onFile(this); };
-
-  function loadSource(dataUrl) {
-    sourceImg = new Image();
-    sourceImg.onload = function () {
-      $('editBlock').style.display = 'block';
-      setupCanvas();
-      toast('Foto lista');
-    };
-    sourceImg.src = dataUrl;
-  }
-  function setupCanvas() {
-    var canvas = $('cropCanvas');
-    var maxW = Math.min(600, window.innerWidth - 32);
-    var scale = Math.min(1, maxW / sourceImg.width);
-    canvas.width = Math.max(1, Math.round(sourceImg.width * scale));
-    canvas.height = Math.max(1, Math.round(sourceImg.height * scale));
-    cropRect = null;
-    redraw();
-  }
-  function redraw() {
-    var canvas = $('cropCanvas');
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
-    if (cropRect && cropRect.w > 2) {
-      ctx.fillStyle = 'rgba(0,0,0,.45)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.clearRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-      ctx.drawImage(sourceImg, 0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = '#25D366';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-    }
-  }
-  function pos(e) {
-    var r = $('cropCanvas').getBoundingClientRect();
-    var t = e.touches ? e.touches[0] : e;
-    return {
-      x: ((t.clientX - r.left) / r.width) * $('cropCanvas').width,
-      y: ((t.clientY - r.top) / r.height) * $('cropCanvas').height,
-    };
-  }
-  function onDown(e) {
-    e.preventDefault();
-    dragging = true;
-    var p = pos(e);
-    startX = p.x; startY = p.y;
-    cropRect = { x: startX, y: startY, w: 0, h: 0 };
-  }
-  function onMove(e) {
-    if (!dragging) return;
-    e.preventDefault();
-    var p = pos(e);
-    cropRect = {
-      x: Math.min(startX, p.x), y: Math.min(startY, p.y),
-      w: Math.abs(p.x - startX), h: Math.abs(p.y - startY),
-    };
-    redraw();
-  }
-  function onUp() { dragging = false; }
-  $('cropCanvas').addEventListener('mousedown', onDown);
-  $('cropCanvas').addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-  $('cropCanvas').addEventListener('touchstart', onDown, { passive: false });
-  $('cropCanvas').addEventListener('touchmove', onMove, { passive: false });
-  $('cropCanvas').addEventListener('touchend', onUp);
-
-  $('btnResetCrop').onclick = function () { cropRect = null; redraw(); };
-  $('btnApplyText').onclick = function () {
-    var text = $('overlayText').value.trim();
-    if (!text) return toast('Escribe un texto');
-    var c = $('cropCanvas');
-    var ctx = c.getContext('2d');
-    var fontSize = Math.max(18, Math.round(c.width / 16));
-    ctx.font = 'bold ' + fontSize + 'px system-ui';
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = 'rgba(0,0,0,.75)';
-    ctx.lineWidth = 4;
-    ctx.strokeText(text, 16, c.height - 24);
-    ctx.fillText(text, 16, c.height - 24);
-    sourceImg = new Image();
-    sourceImg.onload = function () { cropRect = null; setupCanvas(); };
-    sourceImg.src = c.toDataURL('image/jpeg', 0.92);
-  };
-
-  function bakeProductPhoto() {
-    var c = $('cropCanvas');
-    var out = c;
-    if (cropRect && cropRect.w > 8 && cropRect.h > 8) {
-      var t = document.createElement('canvas');
-      t.width = Math.round(cropRect.w);
-      t.height = Math.round(cropRect.h);
-      t.getContext('2d').drawImage(c, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, t.width, t.height);
-      out = t;
-    }
-    productPhotoDataURL = out.toDataURL('image/jpeg', 0.92);
-  }
-  $('btnToData').onclick = function () {
-    if (!sourceImg) return toast('Agrega una foto');
-    bakeProductPhoto();
-    showStep('data');
-  };
-  $('btnBackPhoto').onclick = function () { showStep('photo'); };
-  $('btnBackData').onclick = function () { showStep('data'); };
-
-  function wrapText(ctx, text, maxWidth) {
-    var words = String(text || '').split(/\s+/);
-    var lines = [], line = '';
-    for (var i = 0; i < words.length; i++) {
-      var test = line ? line + ' ' + words[i] : words[i];
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line);
-        line = words[i];
-      } else line = test;
-    }
-    if (line) lines.push(line);
-    return lines;
-  }
-  function roundRect(ctx, x, y, w, h, r) {
-    var rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  }
-  function buildOfferImage() {
-    return new Promise(function (resolve, reject) {
-      if (!productPhotoDataURL) return reject(new Error('Falta la foto'));
-      var img = new Image();
-      img.onload = function () {
-        var W = 1080, pad = 48;
-        var name = $('prodName').value.trim() || 'Oferta';
-        var price = $('prodPrice').value.trim() || '';
-        var desc = $('prodDesc').value.trim() || '';
-        var measure = document.createElement('canvas').getContext('2d');
-        measure.font = '700 54px system-ui';
-        var nameLines = wrapText(measure, name, W - pad * 2 - 48);
-        measure.font = '400 34px system-ui';
-        var descLines = desc ? wrapText(measure, desc, W - pad * 2 - 48).slice(0, 5) : [];
-        var textH = 40 + nameLines.length * 64 + (price ? 96 : 0) + (descLines.length ? 16 + descLines.length * 44 : 0) + 40;
-        var innerW = W - pad * 2;
-        var imgH = Math.round((innerW * img.height) / img.width);
-        var H = pad + imgH + 28 + textH + pad;
-        var canvas = document.createElement('canvas');
-        canvas.width = W; canvas.height = H;
-        var ctx = canvas.getContext('2d');
-        var g = ctx.createLinearGradient(0, 0, W, H);
-        g.addColorStop(0, '#0d1b2a');
-        g.addColorStop(1, '#0a1622');
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, W, H);
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,.45)';
-        ctx.shadowBlur = 36;
-        ctx.shadowOffsetY = 14;
-        roundRect(ctx, pad, pad, innerW, imgH, 28);
-        ctx.fillStyle = '#000';
-        ctx.fill();
-        ctx.restore();
-        ctx.save();
-        roundRect(ctx, pad, pad, innerW, imgH, 28);
-        ctx.clip();
-        ctx.drawImage(img, pad, pad, innerW, imgH);
-        ctx.restore();
-        var panelY = pad + imgH + 28;
-        roundRect(ctx, pad, panelY, innerW, textH, 28);
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-        ctx.lineWidth = 1.5;
-        roundRect(ctx, pad, panelY, innerW, textH, 28);
-        ctx.stroke();
-        ctx.fillStyle = '#25D366';
-        roundRect(ctx, pad + 18, panelY + 28, 8, textH - 56, 6);
-        ctx.fill();
-        var tx = pad + 44, y = panelY + 52;
-        ctx.fillStyle = '#fff';
-        ctx.font = '700 54px system-ui';
-        nameLines.forEach(function (ln) { ctx.fillText(ln, tx, y); y += 64; });
-        if (price) {
-          y += 8;
-          ctx.font = '800 64px system-ui';
-          ctx.fillStyle = '#2fe574';
-          ctx.fillText(price, tx, y);
-          y += 80;
+  $('btnPair').onclick=function(){
+    var phone=($('pairPhone').value||'').replace(/\D/g,'');
+    if(phone.length<10) return toast('Número con código de país');
+    $('btnPair').disabled=true; $('pairCode').style.display='none';
+    $('pairHint').textContent='Generando…';
+    apiFetch('/api/whatsapp/pairing-code',{ method:'POST', body: JSON.stringify({ phoneNumber: phone }) })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        $('btnPair').disabled=false;
+        if(data.pairingCode){
+          $('pairCode').style.display='block';
+          $('pairCode').textContent=data.pairingCode;
+          $('pairHint').textContent='Escríbelo ahora en WhatsApp';
+          var n=0, t=setInterval(function(){ n++; refreshAll(); if(linked||n>40) clearInterval(t); }, 3000);
+        } else {
+          $('pairHint').textContent=data.error||'No se pudo generar el código';
         }
-        if (descLines.length) {
-          ctx.fillStyle = 'rgba(255,255,255,0.78)';
-          ctx.font = '400 34px system-ui';
-          descLines.forEach(function (ln) { ctx.fillText(ln, tx, y); y += 44; });
-        }
-        offerDataURL = canvas.toDataURL('image/jpeg', 0.93);
-        resolve(offerDataURL);
-      };
-      img.onerror = function () { reject(new Error('No se pudo cargar la foto')); };
-      img.src = productPhotoDataURL;
+      }).catch(function(){ $('btnPair').disabled=false; $('pairHint').textContent='Error de conexión'; });
+  };
+  $('btnUnlink').onclick=function(){
+    if(!confirm('¿Desvincular solo este teléfono?')) return;
+    apiFetch('/api/whatsapp/unlink',{ method:'POST', body:'{}' }).then(function(){ linked=false; toast('Desvinculado'); refreshAll(); });
+  };
+
+  function loadChats(){
+    apiFetch('/api/whatsapp/chats').then(function(r){ return r.json(); }).then(function(data){
+      chats = (data && data.chats) || [];
+      renderChatList();
+    }).catch(function(){});
+  }
+  function renderChatList(){
+    var q=($('chatFilter').value||'').toLowerCase();
+    var list = chats.filter(function(c){
+      var n=(c.name||c.id||'').toLowerCase();
+      return !q || n.indexOf(q)>=0;
+    });
+    if(!list.length){
+      $('chatList').innerHTML='<div class="empty">No hay chats aún. Cuando lleguen mensajes aparecerán aquí.</div>';
+      return;
+    }
+    var groupSvg = '<svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>';
+    var personSvg = '<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+    $('chatList').innerHTML = list.map(function(c){
+      var isG = c.type==='group' || String(c.id).indexOf('@g.us')>=0;
+      return '<button type="button" class="chat-row" data-jid="'+String(c.id).replace(/"/g,'')+'" data-name="'+String(c.name||c.id).replace(/"/g,'&quot;')+'">'+
+        '<div class="av">'+(isG?groupSvg:personSvg)+'</div>'+
+        '<div style="min-width:0;flex:1"><p class="t">'+String(c.name||c.id).replace(/</g,'')+'</p>'+
+        '<p class="s">'+(c.lastText||'').replace(/</g,'').slice(0,60)+'</p></div></button>';
+    }).join('');
+    $('chatList').querySelectorAll('.chat-row').forEach(function(row){
+      row.onclick=function(){ openChat(row.getAttribute('data-jid'), row.getAttribute('data-name')); };
     });
   }
+  $('chatFilter').oninput=function(){ renderChatList(); };
 
-  $('btnToSend').onclick = async function () {
-    if (!$('prodName').value.trim() && !$('prodPrice').value.trim()) return toast('Pon nombre o precio');
-    try {
-      toast('Preparando…');
-      $('offerPreview').src = await buildOfferImage();
-      if (openwaReady) $('openwaBox').style.display = 'block';
-      showStep('send');
-    } catch (e) {
-      toast(e.message || 'Error');
-    }
-  };
-
-  // templates
-  function loadTemplates() {
-    apiFetch('/api/templates').then(function (r) { return r.json(); }).then(function (data) {
-      var sel = $('tplSelect');
-      if (!sel || !data.templates) return;
-      var h = '<option value="">— Sin plantilla —</option>';
-      data.templates.forEach(function (t) {
-        h += '<option value="' + t.id + '" data-body="' + encodeURIComponent(t.body || '') + '">' + (t.name || t.id) + '</option>';
-      });
-      sel.innerHTML = h;
-    }).catch(function () {});
+  function openChat(jid, name){
+    currentJid=jid; currentName=name||jid;
+    $('chatTitle').textContent=currentName;
+    $('msgList').innerHTML='<div class="empty">Cargando…</div>';
+    openSheet('sheetChat');
+    loadMessages();
   }
-  $('tplSelect').onchange = function () {
-    var opt = this.options[this.selectedIndex];
-    if (!opt || !opt.getAttribute('data-body')) return;
-    var body = decodeURIComponent(opt.getAttribute('data-body'));
-    body = body.replace(/\{\{nombre\}\}/gi, $('prodName').value || '')
-      .replace(/\{\{precio\}\}/gi, $('prodPrice').value || '')
-      .replace(/\{\{detalle\}\}/gi, $('prodDesc').value || '');
-    $('prodDesc').value = body;
-    toast('Plantilla aplicada');
-  };
-
-  function selectedDestinations() {
-    var sel = $('waDestSelect');
-    var out = [];
-    if (sel && sel.selectedOptions) {
-      for (var i = 0; i < sel.selectedOptions.length; i++) {
-        if (sel.selectedOptions[i].value) out.push(sel.selectedOptions[i].value);
-      }
-    }
-    var manual = ($('waDest').value || '').trim();
-    if (manual) out.push(manual);
-    return out.filter(function (v, i, a) { return a.indexOf(v) === i; });
-  }
-
-  async function dataURLToFile(dataURL, name) {
-    var res = await fetch(dataURL);
-    var blob = await res.blob();
-    return new File([blob], name, { type: blob.type || 'image/jpeg' });
-  }
-
-  $('btnSendWA').onclick = async function () {
-    if (!offerDataURL) await buildOfferImage();
-    var destList = selectedDestinations();
-    var caption =
-      ($('prodName').value.trim() || 'Oferta') +
-      ($('prodPrice').value.trim() ? '\n' + $('prodPrice').value.trim() : '') +
-      ($('prodDesc').value.trim() ? '\n' + $('prodDesc').value.trim() : '');
-    var status = $('sendStatus');
-
-    if (openwaReady && destList.length) {
-      var chats = destList.map(function (d) {
-        return /^\d{8,15}$/.test(d) ? d + '@c.us' : d;
-      });
-      status.textContent = 'Enviando a ' + chats.length + ' destino(s)…';
-      try {
-        var res = await apiFetch('/api/publish', {
-          method: 'POST',
-          body: JSON.stringify({
-            agentId: DEVICE_ID,
-            timestamp: new Date().toISOString(),
-            products: [{
-              name: $('prodName').value.trim(),
-              price: $('prodPrice').value.trim(),
-              description: $('prodDesc').value.trim(),
-              imageBase64: offerDataURL,
-            }],
-            total: 1,
-            destinations: { facebook: [], whatsapp: chats },
-          }),
-        });
-        var data = await res.json();
-        var ok = (data.whatsapp || []).some(function (x) { return x && x.ok; });
-        if (ok) {
-          status.innerHTML = '<span class="ok">Enviado.</span> ' + (data.message || '');
-          $('lastResult').textContent = 'Enviado — ' + ($('prodName').value.trim() || 'oferta');
-          toast('Enviado');
+  function loadMessages(){
+    if(!currentJid) return;
+    apiFetch('/api/whatsapp/messages?jid='+encodeURIComponent(currentJid)+'&limit=80')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items=(data&&data.items)||[];
+        if(!items.length){
+          $('msgList').innerHTML='<div class="empty">'+(data.note||'Sin mensajes en caché todavía. Los nuevos aparecerán aquí.')+'</div>';
           return;
         }
-        status.innerHTML = '<span class="warn">' + ((data && data.message) || 'No confirmado') + '</span>';
-      } catch (e) {
-        status.innerHTML = '<span class="warn">Error de envío automático.</span>';
-      }
+        $('msgList').innerHTML = items.map(function(m){
+          var cls = m.fromMe ? 'out' : 'in';
+          var body = '';
+          if(m.type==='image' && m.dataUrl){
+            body += '<img src="'+m.dataUrl+'" alt=""/>';
+            if(m.text) body += '<div>'+esc(m.text)+'</div>';
+            body += '<button type="button" class="use-offer" data-img="'+m.dataUrl.replace(/"/g,'&quot;')+'">Usar en oferta</button>';
+          } else {
+            body += '<div>'+esc(m.text||'')+'</div>';
+          }
+          var tm = m.ts ? new Date(m.ts*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+          return '<div class="bubble '+cls+'">'+body+'<div class="time">'+tm+'</div></div>';
+        }).join('');
+        $('msgList').scrollTop = $('msgList').scrollHeight;
+        $('msgList').querySelectorAll('.use-offer').forEach(function(b){
+          b.onclick=function(){
+            productPhotoDataURL = b.getAttribute('data-img');
+            loadSource(productPhotoDataURL);
+            offerTargetJid = currentJid;
+            openOffer();
+            setTimeout(function(){ bakeProductPhoto(); showOfferStep('data'); }, 200);
+          };
+        });
+      }).catch(function(){ $('msgList').innerHTML='<div class="empty">Error al cargar mensajes</div>'; });
+  }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  $('btnSendMsg').onclick=function(){
+    var text=($('msgInput').value||'').trim();
+    if(!text||!currentJid) return;
+    apiFetch('/api/whatsapp/send',{ method:'POST', body: JSON.stringify({ chatId: currentJid, text: text }) })
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ toast(res.d.error||'No se pudo enviar'); return; }
+        $('msgInput').value='';
+        loadMessages();
+      }).catch(function(){ toast('Error de envío'); });
+  };
+  $('msgInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); $('btnSendMsg').click(); } });
+  $('btnChatOffer').onclick=function(){ offerTargetJid=currentJid; openOffer(); };
+
+  // Offer flow
+  function openOffer(){ showOfferStep('photo'); openSheet('sheetOffer'); }
+  function showOfferStep(n){
+    $('oPhoto').style.display=n==='photo'?'block':'none';
+    $('oData').style.display=n==='data'?'block':'none';
+    $('oSend').style.display=n==='send'?'block':'none';
+    $('offerTitle').textContent=n==='photo'?'Foto':n==='data'?'Datos':'Enviar';
+  }
+  $('btnCam').onclick=function(){ $('inputCamera').click(); };
+  $('btnGal').onclick=function(){ $('inputGallery').click(); };
+  function onFile(inp){
+    var f=inp.files&&inp.files[0]; if(!f) return;
+    var rd=new FileReader(); rd.onload=function(){ loadSource(rd.result); }; rd.readAsDataURL(f); inp.value='';
+  }
+  $('inputCamera').onchange=function(){ onFile(this); };
+  $('inputGallery').onchange=function(){ onFile(this); };
+
+  function loadSource(url){
+    sourceImg=new Image();
+    sourceImg.onload=function(){ $('editBlock').style.display='block'; setupCanvas(); };
+    sourceImg.src=url;
+  }
+  function setupCanvas(){
+    var c=$('cropCanvas'), maxW=Math.min(600, innerWidth-32), sc=Math.min(1, maxW/sourceImg.width);
+    c.width=Math.round(sourceImg.width*sc); c.height=Math.round(sourceImg.height*sc);
+    cropRect=null; redraw();
+  }
+  function redraw(){
+    var c=$('cropCanvas'), ctx=c.getContext('2d');
+    ctx.clearRect(0,0,c.width,c.height); ctx.drawImage(sourceImg,0,0,c.width,c.height);
+    if(cropRect&&cropRect.w>2){
+      ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,c.width,c.height);
+      ctx.clearRect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);
+      ctx.drawImage(sourceImg,0,0,c.width,c.height);
+      ctx.strokeStyle='#25D366'; ctx.lineWidth=3; ctx.strokeRect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);
     }
-
-    // Fallback share
-    try {
-      var file = await dataURLToFile(offerDataURL, 'oferta.jpg');
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: caption, title: 'Oferta' });
-        status.innerHTML = '<span class="ok">Comparte eligiendo WhatsApp.</span>';
-        return;
-      }
-    } catch (e) {
-      if (e && e.name === 'AbortError') return;
-    }
-    var a = document.createElement('a');
-    a.href = offerDataURL;
-    a.download = 'oferta.jpg';
-    a.click();
-    window.location.href = 'https://wa.me/?text=' + encodeURIComponent(caption);
-    status.textContent = 'Imagen guardada — adjúntala en WhatsApp';
+  }
+  function pos(e){ var r=$('cropCanvas').getBoundingClientRect(); var t=e.touches?e.touches[0]:e;
+    return {x:((t.clientX-r.left)/r.width)*$('cropCanvas').width, y:((t.clientY-r.top)/r.height)*$('cropCanvas').height}; }
+  function onDown(e){ e.preventDefault(); dragging=true; var p=pos(e); startX=p.x; startY=p.y; cropRect={x:startX,y:startY,w:0,h:0}; }
+  function onMove(e){ if(!dragging)return; e.preventDefault(); var p=pos(e);
+    cropRect={x:Math.min(startX,p.x),y:Math.min(startY,p.y),w:Math.abs(p.x-startX),h:Math.abs(p.y-startY)}; redraw(); }
+  function onUp(){ dragging=false; }
+  $('cropCanvas').addEventListener('mousedown',onDown); $('cropCanvas').addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+  $('cropCanvas').addEventListener('touchstart',onDown,{passive:false}); $('cropCanvas').addEventListener('touchmove',onMove,{passive:false}); $('cropCanvas').addEventListener('touchend',onUp);
+  $('btnApplyText').onclick=function(){
+    var text=$('overlayText').value.trim(); if(!text) return;
+    var c=$('cropCanvas'), ctx=c.getContext('2d'), fs=Math.max(18,Math.round(c.width/16));
+    ctx.font='bold '+fs+'px system-ui'; ctx.fillStyle='#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=4;
+    ctx.strokeText(text,16,c.height-24); ctx.fillText(text,16,c.height-24);
+    sourceImg=new Image(); sourceImg.onload=function(){ cropRect=null; setupCanvas(); }; sourceImg.src=c.toDataURL('image/jpeg',0.92);
   };
+  function bakeProductPhoto(){
+    var c=$('cropCanvas'), out=c;
+    if(cropRect&&cropRect.w>8){ var t=document.createElement('canvas'); t.width=Math.round(cropRect.w); t.height=Math.round(cropRect.h);
+      t.getContext('2d').drawImage(c,cropRect.x,cropRect.y,cropRect.w,cropRect.h,0,0,t.width,t.height); out=t; }
+    productPhotoDataURL=out.toDataURL('image/jpeg',0.92);
+  }
+  $('btnToData').onclick=function(){ if(!sourceImg) return toast('Agrega una foto'); bakeProductPhoto(); showOfferStep('data'); };
+  $('btnBackPhoto').onclick=function(){ showOfferStep('photo'); };
+  $('btnBackData').onclick=function(){ showOfferStep('data'); };
 
-  $('btnShareOther').onclick = async function () {
-    if (!offerDataURL) return;
-    try {
-      var file = await dataURLToFile(offerDataURL, 'oferta.jpg');
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Oferta' });
-        return;
-      }
-    } catch (_) {}
-    $('btnDownload').click();
-  };
-  $('btnDownload').onclick = function () {
-    if (!offerDataURL) return;
-    var a = document.createElement('a');
-    a.href = offerDataURL;
-    a.download = 'oferta.jpg';
-    a.click();
-    toast('Guardada');
-  };
-
-  // Install PWA
-  var deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();
-    deferredPrompt = e;
-    $('btnInstallHdr').classList.remove('hidden');
-  });
-  $('btnInstallHdr').onclick = function () {
-    if (!deferredPrompt) return toast('Menú ⋮ → Instalar app');
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(function () {
-      deferredPrompt = null;
-      $('btnInstallHdr').classList.add('hidden');
+  function buildOffer(){
+    return new Promise(function(resolve,reject){
+      if(!productPhotoDataURL) return reject(new Error('Falta foto'));
+      var img=new Image();
+      img.onload=function(){
+        var W=1080,pad=48, name=$('prodName').value.trim()||'Oferta', price=$('prodPrice').value.trim(), desc=$('prodDesc').value.trim();
+        var innerW=W-pad*2, imgH=Math.round(innerW*img.height/img.width);
+        var textH=160+(desc?80:0);
+        var H=pad+imgH+28+textH+pad;
+        var canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+        var ctx=canvas.getContext('2d');
+        ctx.fillStyle='#0d1b2a'; ctx.fillRect(0,0,W,H);
+        ctx.drawImage(img,pad,pad,innerW,imgH);
+        ctx.fillStyle='rgba(255,255,255,.12)'; ctx.fillRect(pad,pad+imgH+28,innerW,textH);
+        ctx.fillStyle='#fff'; ctx.font='700 52px system-ui'; ctx.fillText(name,pad+40,pad+imgH+90);
+        if(price){ ctx.fillStyle='#25D366'; ctx.font='800 60px system-ui'; ctx.fillText(price,pad+40,pad+imgH+160); }
+        if(desc){ ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='400 32px system-ui'; ctx.fillText(desc.slice(0,80),pad+40,pad+imgH+210); }
+        offerDataURL=canvas.toDataURL('image/jpeg',0.92); resolve(offerDataURL);
+      };
+      img.onerror=function(){ reject(new Error('Foto inválida')); };
+      img.src=productPhotoDataURL;
     });
+  }
+  $('btnToSend').onclick=async function(){
+    if(!$('prodName').value.trim()&&!$('prodPrice').value.trim()) return toast('Pon nombre o precio');
+    try{ $('offerPreview').src=await buildOffer();
+      // fill dest select from chats
+      var sel=$('waDestSelect'); sel.innerHTML='';
+      chats.forEach(function(c){ var o=document.createElement('option'); o.value=c.id; o.textContent=c.name||c.id; if(offerTargetJid&&c.id===offerTargetJid) o.selected=true; sel.appendChild(o); });
+      showOfferStep('send');
+    }catch(e){ toast(e.message||'Error'); }
   };
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  function selectedDests(){
+    var out=[], sel=$('waDestSelect');
+    if(sel) for(var i=0;i<sel.selectedOptions.length;i++) if(sel.selectedOptions[i].value) out.push(sel.selectedOptions[i].value);
+    if(offerTargetJid && out.indexOf(offerTargetJid)<0) out.unshift(offerTargetJid);
+    var m=($('waDest').value||'').trim(); if(m) out.push(m);
+    return out.filter(function(v,i,a){ return a.indexOf(v)===i; });
   }
 
-  function refreshAll() {
-    refreshWA();
-    loadTemplates();
-  }
+  $('btnPublish').onclick=async function(){
+    if(!offerDataURL) await buildOffer();
+    var dests=selectedDests();
+    if(!dests.length) return toast('Elige al menos un destino');
+    $('sendStatus').textContent='Enviando…';
+    var res=await apiFetch('/api/publish',{ method:'POST', body: JSON.stringify({
+      agentId: DEVICE_ID, timestamp: new Date().toISOString(),
+      products:[{ name:$('prodName').value.trim(), price:$('prodPrice').value.trim(), description:$('prodDesc').value.trim(), imageBase64: offerDataURL }],
+      total:1, destinations:{ facebook:[], whatsapp: dests.map(function(d){ return /^\d{8,15}$/.test(d)?d+'@c.us':d; }) }
+    })});
+    var data=await res.json();
+    if(!res.ok || !(data.whatsapp||[]).some(function(x){return x&&x.ok;})){
+      toast((data&&data.message)||(data&&data.error)||'No se pudo enviar (límite o sesión)');
+      $('sendStatus').textContent=(data&&data.message)||'Falló el envío';
+      return;
+    }
+    toast('Oferta enviada');
+    $('sendStatus').textContent='Enviado';
+  };
+
+  $('btnPubStatus').onclick=async function(){
+    if(!offerDataURL) await buildOffer();
+    var caption=[$('prodName').value.trim(),$('prodPrice').value.trim()].filter(Boolean).join(' · ');
+    $('sendStatus').textContent='Publicando estado…';
+    var res=await apiFetch('/api/whatsapp/status-post',{ method:'POST', body: JSON.stringify({ text: caption, imageBase64: offerDataURL }) });
+    var data=await res.json();
+    if(!res.ok || !data.ok){ toast(data.error||'No se pudo publicar el estado'); $('sendStatus').textContent=data.error||'Error'; return; }
+    toast('Estado publicado');
+    $('sendStatus').textContent='Estado publicado';
+  };
+
+  $('btnStatus').onclick=function(){ offerTargetJid=null; openOffer(); toast('Prepara la oferta y usa Publicar en estado'); };
+
+  $('btnShare').onclick=async function(){
+    if(!offerDataURL) return;
+    try{
+      var blob=await (await fetch(offerDataURL)).blob();
+      var file=new File([blob],'oferta.jpg',{type:'image/jpeg'});
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Oferta'}); return; }
+    }catch(e){ if(e&&e.name==='AbortError') return; }
+    var a=document.createElement('a'); a.href=offerDataURL; a.download='oferta.jpg'; a.click();
+  };
+
+  // poll messages when chat open
+  setInterval(function(){ if(currentJid && $('sheetChat').classList.contains('open')) loadMessages(); }, 8000);
   refreshAll();
-  setInterval(refreshWA, 12000);
+  setInterval(refreshAll, 15000);
 })();
 </script>
 </body>

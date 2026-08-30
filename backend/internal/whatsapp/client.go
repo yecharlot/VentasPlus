@@ -300,3 +300,70 @@ func IsConnected(st map[string]interface{}) bool {
 	s = strings.ToLower(s)
 	return s == "ready" || s == "authenticated" || s == "connected"
 }
+
+func (c *Client) Chats(sessionID string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/chats", nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("chats HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
+
+func (c *Client) Messages(sessionID, jid string, limit int, before int64) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	if limit <= 0 {
+		limit = 50
+	}
+	q := url.Values{}
+	q.Set("jid", jid)
+	q.Set("limit", strconv.Itoa(limit))
+	if before > 0 {
+		q.Set("before", strconv.FormatInt(before, 10))
+	}
+	code, out, raw, err := c.do(http.MethodGet, "/api/sessions/"+sessionID+"/messages?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("messages HTTP %d: %s", code, string(raw))
+	}
+	return out, nil
+}
+
+func (c *Client) SendChat(sessionID, chatID, text, imageBase64 string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	body := map[string]interface{}{"chatId": chatID, "text": text}
+	if imageBase64 != "" {
+		body["imageBase64"] = imageBase64
+	}
+	code, out, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/messages/send", body)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("send HTTP %d: %s", code, string(raw))
+	}
+	out["ok"] = true
+	return out, nil
+}
+
+func (c *Client) PostStatus(sessionID, text, imageBase64 string) (map[string]interface{}, error) {
+	sessionID = SanitizeSessionID(sessionID)
+	body := map[string]interface{}{"text": text}
+	if imageBase64 != "" {
+		body["imageBase64"] = imageBase64
+	}
+	code, out, raw, err := c.do(http.MethodPost, "/api/sessions/"+sessionID+"/status", body)
+	if err != nil {
+		return nil, err
+	}
+	if code >= 300 {
+		return out, fmt.Errorf("status HTTP %d: %s", code, string(raw))
+	}
+	out["ok"] = true
+	return out, nil
+}

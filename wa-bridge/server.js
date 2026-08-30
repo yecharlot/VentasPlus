@@ -23,6 +23,26 @@ const PORT = Number(process.env.PORT || 2785);
 const API_KEY = process.env.API_MASTER_KEY || process.env.OPENWA_API_KEY || '';
 const DATA = process.env.SESSION_DATA_PATH || path.join(__dirname, 'data', 'sessions');
 fs.mkdirSync(DATA, { recursive: true });
+const MIND_HOOK = process.env.ALSET_MIND_WEBHOOK || ''; // ej. https://host/api/mind/tick
+
+async function notifyMind(text, meta) {
+  if (!MIND_HOOK) return;
+  try {
+    await fetch(MIND_HOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: String(text || '').slice(0, 2000),
+        session: 'wa-' + (meta?.sessionId || 'x'),
+        source: 'whatsapp',
+        meta: meta || {},
+      }),
+    });
+  } catch (e) {
+    log.warn({ err: String(e) }, 'mind webhook failed');
+  }
+}
+
 
 /** @type {Map<string, any>} */
 const sessions = new Map();
@@ -176,6 +196,16 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
   });
 
   s.mediaByChat = s.mediaByChat || {};
+  s.messagesByChat = s.messagesByChat || {};
+  const pushMsg = (jid, msg) => {
+    if (!jid || !msg) return;
+    const arr = s.messagesByChat[jid] || [];
+    if (msg.id && arr.some((x) => x.id === msg.id)) return;
+    arr.push(msg);
+    arr.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    s.messagesByChat[jid] = arr.slice(-200);
+  };
+
   const pushMedia = (jid, item) => {
     if (!jid || !item) return;
     const arr = s.mediaByChat[jid] || [];
@@ -191,26 +221,63 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
       try {
         if (!m.message || m.key?.remoteJid === 'status@broadcast') continue;
         const jid = m.key.remoteJid;
+        const ts = Number(m.messageTimestamp || Date.now() / 1000);
+        const fromMe = !!m.key.fromMe;
         const img = m.message.imageMessage || m.message.viewOnceMessageV2?.message?.imageMessage;
-        if (!img) continue;
-        let dataUrl = null;
-        try {
-          const buf = await downloadMediaMessage(m, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
-          if (buf && buf.length && buf.length < 4_500_000) {
-            dataUrl = 'data:' + (img.mimetype || 'image/jpeg') + ';base64,' + Buffer.from(buf).toString('base64');
+        if (img) {
+          let dataUrl = null;
+          try {
+            const buf = await downloadMediaMessage(
+              m,
+              'buffer',
+              {},
+              { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+            );
+            if (buf && buf.length && buf.length < 4_500_000) {
+              dataUrl =
+                'data:' + (img.mimetype || 'image/jpeg') + ';base64,' + Buffer.from(buf).toString('base64');
+            }
+          } catch (e) {
+            log.warn({ err: String(e) }, 'media download skip');
           }
-        } catch (e) {
-          log.warn({ err: String(e) }, 'media download skip');
+          const caption = img.caption || '';
+          pushMedia(jid, {
+            id: m.key.id,
+            jid,
+            ts,
+            caption,
+            mimetype: img.mimetype || 'image/jpeg',
+            dataUrl,
+            fromMe,
+          });
+          pushMsg(jid, {
+            id: m.key.id,
+            jid,
+            ts,
+            type: 'image',
+            text: caption,
+            dataUrl,
+            fromMe,
+          });
+          notifyMind(caption || '[imagen de WhatsApp]', { sessionId: id, jid, type: 'image' });
+          continue;
         }
-        pushMedia(jid, {
-          id: m.key.id,
-          jid,
-          ts: Number(m.messageTimestamp || Date.now() / 1000),
-          caption: img.caption || m.message?.imageMessage?.caption || '',
-          mimetype: img.mimetype || 'image/jpeg',
-          dataUrl,
-          fromMe: !!m.key.fromMe,
-        });
+        const text =
+          m.message.conversation ||
+          m.message.extendedTextMessage?.text ||
+          '';
+        if (text) {
+          pushMsg(jid, {
+            id: m.key.id,
+            jid,
+            ts,
+            type: 'text',
+            text,
+            fromMe,
+          });
+          if (!s.chats[jid]) s.chats[jid] = { id: jid, name: jid, unread: 0 };
+          notifyMind(text, { sessionId: id, jid, type: 'text' });
+        }
       } catch (_) {}
     }
   });
