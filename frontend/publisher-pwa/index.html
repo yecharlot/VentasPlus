@@ -192,6 +192,10 @@
           <div class="av"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6zm0-8h2V7h-2v2z"/></svg></div>
           <div><p class="t">Publicar en estado</p><p class="s">Estado de WhatsApp</p></div>
         </button>
+        <button type="button" class="chat-row" id="btnMindTip">
+          <div class="av"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7zm-1 18h2v1h-2v-1zm-1-3h4v1h-4v-1z"/></svg></div>
+          <div><p class="t">Idea del día (Mind)</p><p class="s">Sugerencia para vender más hoy</p></div>
+        </button>
       </div>
       <p class="empty" id="deviceLabel" style="padding-top:.5rem"></p>
     </div>
@@ -227,6 +231,9 @@
     <div class="sheet-body pad">
       <p style="color:var(--muted);font-size:.9rem;line-height:1.45;margin:0 0 .75rem">
         En el teléfono: WhatsApp → Dispositivos vinculados → Vincular → <strong style="color:var(--text)">Vincular con número</strong>.
+      </p>
+      <p style="color:#f5c26b;font-size:.82rem;line-height:1.4;margin:0 0 .75rem">
+        WhatsApp puede mostrar un aviso de seguridad (cliente no oficial). Si aparece, revisa que el código coincida y confirma solo si iniciaste tú el vínculo aquí. La sesión puede caer si el servidor se reinicia (plan free).
       </p>
       <label>Número (código de país)</label>
       <input class="field" id="pairPhone" inputmode="tel" placeholder="56912345678" />
@@ -611,8 +618,19 @@
 
   // poll messages when chat open
   setInterval(function(){ if(currentJid && $('sheetChat').classList.contains('open')) loadMessages(); }, 8000);
+  $('btnMindTip').onclick=function(){
+    var tips=[
+      'Revisa el grupo de proveedores más activo y publica 3 ofertas antes del mediodía.',
+      'Responde en menos de 5 minutos a quien pregunte precio: sube la tasa de cierre.',
+      'Publica en estado una sola oferta estrella con precio claro y llamada a escribirte.',
+      'Agrupa productos similares en un solo mensaje para no saturar el grupo de clientes.',
+      'Usa foto + precio grande: los gestores venden más cuando el precio se lee al primer vistazo.'
+    ];
+    toast(tips[Math.floor(Math.random()*tips.length)]);
+  };
   refreshAll();
-  setInterval(refreshAll, 15000);
+  setInterval(refreshAll, 8000);
+  setInterval(function(){ if(linked) loadChats(); }, 5000);
 })();
 </script>
 </body>

@@ -46,6 +46,18 @@ async function notifyMind(text, meta) {
 
 /** @type {Map<string, any>} */
 const sessions = new Map();
+/** @type {Map<string, Set<import('http').ServerResponse>>} */
+const sseClients = new Map();
+
+function sseBroadcast(sessionId, event, data) {
+  const set = sseClients.get(sessionId);
+  if (!set || !set.size) return;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of set) {
+    try { res.write(payload); } catch (_) {}
+  }
+}
+
 
 function auth(req, res, next) {
   if (!API_KEY) return next();
@@ -154,8 +166,15 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
-    browser: Browsers.ubuntu('Chrome'),
+    // Desktop reduce algunos bloqueos vs nombres raros de app
+    browser: Browsers.macOS('Desktop'),
     markOnlineOnConnect: false,
+    syncFullHistory: false,
+    generateHighQualityLinkPreview: false,
+    connectTimeoutMs: 60_000,
+    defaultQueryTimeoutMs: 60_000,
+    keepAliveIntervalMs: 15_000,
+    getMessage: async () => undefined,
   });
   s.sock = sock;
 
@@ -165,6 +184,12 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
   s.chats = s.chats || {};
   s.groupsCache = s.groupsCache || [];
 
+  sock.ev.on('contacts.set', ({ contacts }) => {
+    for (const c of contacts || []) {
+      if (c?.id) s.contacts[c.id] = { id: c.id, name: c.notify || c.name || c.verifiedName || c.id };
+    }
+    sseBroadcast(id, 'chats', { reason: 'contacts.set' });
+  });
   sock.ev.on('contacts.upsert', (list) => {
     for (const c of list || []) {
       if (c?.id) s.contacts[c.id] = { id: c.id, name: c.notify || c.name || c.verifiedName || c.id };
@@ -260,6 +285,7 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
             fromMe,
           });
           notifyMind(caption || '[imagen de WhatsApp]', { sessionId: id, jid, type: 'image' });
+          sseBroadcast(id, 'message', { jid, type: 'image' });
           continue;
         }
         const text =
@@ -277,6 +303,7 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
           });
           if (!s.chats[jid]) s.chats[jid] = { id: jid, name: jid, unread: 0 };
           notifyMind(text, { sessionId: id, jid, type: 'text' });
+          sseBroadcast(id, 'message', { jid, type: 'text', preview: String(text).slice(0, 80) });
         }
       } catch (_) {}
     }
@@ -295,6 +322,7 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
       s.pairingCode = null;
       s.lastQr = null;
       log.info({ id }, 'whatsapp ready');
+      sseBroadcast(id, 'session', { status: 'ready', connected: true });
       try {
         const groups = await sock.groupFetchAllParticipating();
         s.groupsCache = Object.values(groups || {}).map((g) => ({
@@ -303,6 +331,7 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
           type: 'group',
         }));
         log.info({ id, n: s.groupsCache.length }, 'groups cached');
+        sseBroadcast(id, 'chats', { reason: 'groups' });
       } catch (e) {
         log.warn({ err: String(e) }, 'group fetch failed');
       }
@@ -313,6 +342,7 @@ async function ensureSocket(id, { phoneNumber, forceNew } = {}) {
       s.sock = null;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
       log.warn({ id, statusCode, loggedOut }, 'connection closed');
+      sseBroadcast(id, 'session', { status: loggedOut ? 'logged_out' : 'disconnected', connected: false });
       if (!loggedOut) {
         setTimeout(() => {
           ensureSocket(id, { phoneNumber: s.phoneNumber }).catch((e) =>
@@ -613,6 +643,26 @@ app.get('/api/sessions/:id/media', async (req, res) => {
     note: merged.length
       ? 'Fotos recientes vistas por el puente desde la vinculación'
       : 'Aún no hay fotos en caché. Abre el grupo en WhatsApp o espera a que lleguen imágenes nuevas; el puente las irá guardando.',
+  });
+});
+
+
+app.get('/api/sessions/:id/events', (req, res) => {
+  // SSE: tiempo real (auth por query key si no hay header en EventSource)
+  const key = req.header('X-API-Key') || req.query.key || '';
+  if (API_KEY && key !== API_KEY) {
+    return res.status(401).json({ ok: false, error: 'unauthorized' });
+  }
+  const id = req.params.id;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+  res.write(`event: hello\ndata: ${JSON.stringify({ sessionId: id })}\n\n`);
+  if (!sseClients.has(id)) sseClients.set(id, new Set());
+  sseClients.get(id).add(res);
+  req.on('close', () => {
+    sseClients.get(id)?.delete(res);
   });
 });
 

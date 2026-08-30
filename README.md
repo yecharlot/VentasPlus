@@ -61,3 +61,10 @@ Ideas de uso:
 - Episodios de memoria CID desde chats de proveedores (precios, productos).
 - Órgano curiosity cuando aparece un tema nuevo en un grupo.
 - Sugerir texto de oferta con LISPAI a partir del historial del chat (sin LLM: plantillas + corpus).
+
+## Limitaciones de WhatsApp (importante)
+
+- WhatsApp **no autoriza** clientes tipo Baileys/OpenWA. Puede mostrar **aviso de estafa/seguridad** al vincular y **cerrar la sesión** en segundos o minutos.
+- En **Render free** el proceso se duerme: la sesión se pierde y hay que volver a vincular.
+- La única vía estable y oficial es **WhatsApp Cloud API** (número de negocio Meta).
+- Contactos: se listan los que WhatsApp sincroniza al puente; la agenda completa no siempre llega.
